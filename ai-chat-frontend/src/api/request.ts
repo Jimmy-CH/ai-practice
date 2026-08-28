@@ -18,10 +18,6 @@ request.interceptors.request.use((config) => {
 
 request.interceptors.response.use(
   (response) => {
-    // ✅ 关键修改：如果是流式响应，直接返回原始响应对象，不要解析 data
-    if (response.config.responseType === 'stream') {
-      return response;
-    }
     return response.data;
   },
   (error) => {

@@ -1,6 +1,6 @@
 // src/composables/useStreamChat.ts
 import { ref, nextTick } from 'vue';
-import request from '@/api/request'; // 引入封装好的 Axios
+import { useUserStore } from '@/stores/user';
 
 const MAX_RETRIES = 3;
 const REQUEST_TIMEOUT = 60000;
@@ -39,17 +39,29 @@ export function useStreamChat() {
 
     while (attempt <= MAX_RETRIES) {
       try {
-        // 使用 Axios 发起 POST 请求（自动携带 Token）
-        const response = await request.post('/chat/', {
-          messages: getTrimmedMessages(),
-          stream: true,
-          resume_from: lastSeq, // 断线续传：告诉后端从哪里继续
-        }, { 
-          responseType: 'stream', // 关键：告诉 Axios 返回流数据
-          timeout: REQUEST_TIMEOUT 
+        // ✅ 替换为原生 fetch（支持流式读取且能正确携带 Token）
+        const userStore = useUserStore();
+        const res = await fetch('/api/chat/', { // 注意这里带上了末尾的斜杠 /
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${userStore.token}` // 手动注入 Token
+          },
+          body: JSON.stringify({
+            messages: getTrimmedMessages(),
+            stream: true,
+            resume_from: lastSeq,
+          }),
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT) // 超时控制
         });
 
-        const reader = response.data.getReader();
+        // 检查 HTTP 状态码
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+
+        // 获取 ReadableStream 读取器
+        const reader = res.body!.getReader();
         const decoder = new TextDecoder();
         let buffer = ''; 
         let pendingContent = ''; 
@@ -79,6 +91,7 @@ export function useStreamChat() {
             if (line.startsWith('data: ')) {
               try {
                 const jsonData = JSON.parse(line.substring(6));
+                console.log('👉 收到流式数据:', jsonData); // ✅ 加上这行日志
                 lastSeq = jsonData.seq; // 记录最新序号
                 if (jsonData.content) {
                   pendingContent += jsonData.content;
@@ -94,7 +107,9 @@ export function useStreamChat() {
                   isStreaming.value = false;
                   return;
                 }
-              } catch (e) { /* 忽略解析错误 */ }
+              } catch (e) { /* 忽略解析错误 */
+                console.error('❌ JSON 解析失败:', line, e); // ✅ 打印解析错误
+               }
             }
           }
         }
