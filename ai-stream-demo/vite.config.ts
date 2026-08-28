@@ -8,7 +8,7 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
+        rewrite: (path) => path,
         // 关键：配置代理不缓冲响应
         configure: (proxy) => {
           proxy.on('proxyRes', (proxyRes) => {

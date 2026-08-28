@@ -1,8 +1,14 @@
 // src/composables/useStreamChat.ts
 import { ref, nextTick } from 'vue';
 
+// 配置项：可根据实际业务调整
+const MAX_RETRIES = 3;          // 最大重试次数
+const BASE_DELAY = 1000;        // 初始重试延迟（1秒）
+const REQUEST_TIMEOUT = 60000;  // 请求超时时间（60秒，大模型生成较慢，需留足时间）
+const MAX_HISTORY_ROUNDS = 10;  // 保留的最大对话轮数（一问一答算1轮）
+
 export function useStreamChat() {
-  const messages = ref<Array<{ id: number; role: 'user' | 'assistant'; content: string }>>([]);
+  const messages = ref<Array<{ id: number; role: 'user' | 'assistant' | 'system'; content: string }>>([]);
   const isStreaming = ref(false);
 
   const scrollToBottom = () => {
@@ -12,15 +18,63 @@ export function useStreamChat() {
     });
   };
 
+  /**
+   * 对话历史管理：截取最近的对话轮次，并保护 System Prompt
+   */
+  const getTrimmedMessages = () => {
+    const systemMsgs = messages.value.filter(m => m.role === 'system');
+    const nonSystemMsgs = messages.value.filter(m => m.role !== 'system');
+    
+    // 只保留最近的 MAX_HISTORY_ROUNDS * 2 条消息（一问一答）
+    const recentMsgs = nonSystemMsgs.slice(-MAX_HISTORY_ROUNDS * 2);
+    
+    return [...systemMsgs, ...recentMsgs].map(m => ({ role: m.role, content: m.content }));
+  };
+
+  /**
+   * 带超时和重试策略的 Fetch 请求
+   */
+  const fetchWithRetry = async (url: string, options: RequestInit, retries = MAX_RETRIES): Promise<Response> => {
+    let attempt = 0;
+    while (attempt <= retries) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
+      try {
+        const response = await fetch(url, { ...options, signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        // 如果是服务端错误 (5xx)，触发重试
+        if (response.status >= 500 && attempt < retries) {
+          throw new Error(`Server error: ${response.status}`);
+        }
+        return response;
+      } catch (err: any) {
+        clearTimeout(timeoutId);
+        attempt++;
+        
+        // 如果是用户主动取消（例如点击停止生成），直接抛出，不重试
+        if (err.name === 'AbortError' && attempt > 1) throw err; 
+
+        if (attempt > retries) throw err;
+
+        // 指数退避等待
+        const delay = BASE_DELAY * Math.pow(2, attempt - 1);
+        console.warn(`请求失败，${delay}ms 后进行第 ${attempt} 次重试...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+    throw new Error('Max retries exceeded');
+  };
+
   async function sendMessage(content: string) {
     if (!content.trim() || isStreaming.value) return;
 
-    // ✅ 修复1：使用 as const 解决 TS 类型报错
+    // 添加用户消息
     const userMessage = { id: Date.now(), role: 'user' as const, content };
     messages.value.push(userMessage);
 
-    // ✅ 修复2：将 AI 消息也定义为响应式对象，或者通过数组索引修改
-    // 这里我们用一个局部变量暂存内容，最后再统一赋值，或者用 ref 包装
+    // 添加 AI 占位消息
     const aiMsgId = Date.now() + 1;
     const aiMessage = { id: aiMsgId, role: 'assistant' as const, content: '' };
     messages.value.push(aiMessage);
@@ -29,11 +83,12 @@ export function useStreamChat() {
     scrollToBottom();
 
     try {
-      const response = await fetch('/api/chat', {
+      // ✅ 使用带重试的 fetch，并传入裁剪后的历史消息
+      const response = await fetchWithRetry('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          messages: messages.value.map(m => ({ role: m.role, content: m.content })), 
+          messages: getTrimmedMessages(), 
           stream: true 
         })
       });
@@ -43,17 +98,13 @@ export function useStreamChat() {
       const reader = response.body!.getReader();
       const decoder = new TextDecoder();
       let buffer = ''; 
-      let pendingContent = ''; // ✅ 修复3：引入数据缓冲区
+      let pendingContent = ''; 
       let rafId: number | null = null;
 
-      // ✅ 修复4：使用 requestAnimationFrame 批量更新 DOM，解决卡顿
       const tick = () => {
         if (pendingContent) {
-          // 找到数组中对应的 AI 消息并更新（触发 Vue 响应式）
           const targetMsg = messages.value.find(m => m.id === aiMsgId);
-          if (targetMsg) {
-            targetMsg.content += pendingContent;
-          }
+          if (targetMsg) targetMsg.content += pendingContent;
           pendingContent = '';
           scrollToBottom();
           rafId = requestAnimationFrame(tick);
@@ -80,7 +131,6 @@ export function useStreamChat() {
               }
               if (jsonData.finished || jsonData.error) {
                 if (jsonData.error) pendingContent += `\n[Error: ${jsonData.error}]`;
-                // 流结束时，立即 flush 剩余内容
                 if (pendingContent) {
                   const targetMsg = messages.value.find(m => m.id === aiMsgId);
                   if (targetMsg) targetMsg.content += pendingContent;
@@ -106,10 +156,14 @@ export function useStreamChat() {
          } catch(e) {}
       }
 
-    } catch (err) {
+    } catch (err: any) {
       console.error('Stream fetch failed:', err);
       const targetMsg = messages.value.find(m => m.id === aiMsgId);
-      if (targetMsg) targetMsg.content = '抱歉，AI 响应出错了，请稍后重试。';
+      if (targetMsg) {
+        targetMsg.content = err.name === 'AbortError' 
+          ? '请求已超时，请重试。' 
+          : '抱歉，AI 响应出错了，请稍后重试。';
+      }
     } finally {
       isStreaming.value = false;
     }
@@ -117,3 +171,4 @@ export function useStreamChat() {
 
   return { messages, isStreaming, sendMessage };
 }
+
