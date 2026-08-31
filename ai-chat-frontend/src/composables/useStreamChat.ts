@@ -91,7 +91,6 @@ export function useStreamChat() {
             if (line.startsWith('data: ')) {
               try {
                 const jsonData = JSON.parse(line.substring(6));
-                console.log('👉 收到流式数据:', jsonData); // ✅ 加上这行日志
                 lastSeq = jsonData.seq; // 记录最新序号
                 if (jsonData.content) {
                   pendingContent += jsonData.content;
@@ -107,8 +106,8 @@ export function useStreamChat() {
                   isStreaming.value = false;
                   return;
                 }
-              } catch (e) { /* 忽略解析错误 */
-                console.error('❌ JSON 解析失败:', line, e); // ✅ 打印解析错误
+              } catch (e) {
+                console.error('❌ JSON 解析失败:', line, e);
                }
             }
           }
