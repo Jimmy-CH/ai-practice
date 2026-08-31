@@ -13,6 +13,8 @@ class Settings:
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./app.db")
     DEEPSEEK_API_KEY: str = os.getenv("DEEPSEEK_API_KEY")
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com"
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    LOG_FORMAT: str = os.getenv("LOG_FORMAT", "json")
 
 
 settings = Settings()

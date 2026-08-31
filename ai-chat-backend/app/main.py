@@ -5,10 +5,13 @@ from contextlib import asynccontextmanager
 from app.config import settings
 from app.database import engine, Base
 from app.api.router import api_router
+from app.core.logger import setup_logger
+from app.core.middleware import RequestLoggingMiddleware
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_logger()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
@@ -22,5 +25,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_middleware(RequestLoggingMiddleware)
 
 app.include_router(api_router)
