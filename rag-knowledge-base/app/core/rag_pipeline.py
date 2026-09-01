@@ -3,7 +3,7 @@ import os
 from typing import List, Dict, Any
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
@@ -15,7 +15,7 @@ from app.config import settings
 class RAGEngine:
     def __init__(self):
         self.embeddings = OpenAIEmbeddings(model=settings.EMBEDDING_MODEL, openai_api_key=settings.OPENAI_API_KEY)
-        self.llm = ChatOpenAI(model=settings.LLM_MODEL, openai_api_key=settings.OPENAI_API_KEY)
+        self.llm = ChatOpenAI(model=settings.LLM_MODEL, openai_api_key=settings.DEEPSEEK_API_KEY, openai_api_base=settings.DEEPSEEK_BASE_URL)
         self.vectorstore = Chroma(persist_directory=settings.VECTOR_DB_PATH, embedding_function=self.embeddings)
         self.splitter = RecursiveCharacterTextSplitter(chunk_size=settings.CHUNK_SIZE,
                                                        chunk_overlap=settings.CHUNK_OVERLAP)

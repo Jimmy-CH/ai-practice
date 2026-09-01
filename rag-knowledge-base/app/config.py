@@ -1,6 +1,10 @@
 # app/config.py
 import os
+from pathlib import Path
 from pydantic_settings import BaseSettings
+
+# 项目根目录（app/ 的上一级）
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 class Settings(BaseSettings):
@@ -33,7 +37,7 @@ class Settings(BaseSettings):
 
     class Config:
         # 指定环境变量文件路径
-        env_file = ".env"
+        env_file = str(BASE_DIR / ".env")
         # 允许字段名大小写不敏感匹配环境变量
         case_sensitive = False
 
