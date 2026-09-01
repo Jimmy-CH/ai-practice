@@ -6,7 +6,11 @@ from app.config import settings
 
 
 class VectorDBService:
-    """向量数据库服务封装，基于 ChromaDB 提供持久化向量存储"""
+    """向量数据库服务封装，基于 ChromaDB 提供持久化向量存储。
+
+    注意：Chroma 1.x 在写入时自动持久化（persist_directory 指定后无需手动
+    调用 persist()，该方法已从 langchain-chroma 1.x 中移除）。
+    """
 
     def __init__(self, embedding_function):
         self._store = Chroma(
@@ -20,12 +24,8 @@ class VectorDBService:
         return self._store
 
     def add_documents(self, documents: List[Document]) -> List[str]:
-        """将文档写入向量库，返回文档 ID 列表"""
+        """将文档写入向量库，返回文档 ID 列表（Chroma 1.x 自动持久化）"""
         return self._store.add_documents(documents)
-
-    def persist(self):
-        """持久化当前状态到磁盘"""
-        self._store.persist()
 
     def similarity_search(self, query: str, k: int = 5) -> List[Document]:
         """相似度检索，返回最相关的 k 个文档"""
