@@ -1,9 +1,11 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from app.schemas.agent import (
     AgentQueryRequest, AgentQueryResponse, AgentStepResponse,
     SchemasResponse, TableSchema
 )
 from app.agent.langchain_agent import run_agent
+from app.auth.dependencies import require_role
+from app.users.models import User
 
 router = APIRouter(prefix="/agent", tags=["Agent"])
 
@@ -41,7 +43,10 @@ DB_SCHEMA = [
 
 
 @router.post("/query", response_model=AgentQueryResponse)
-async def query(request: AgentQueryRequest):
+async def query(
+    request: AgentQueryRequest,
+    _current_user: User = Depends(require_role("admin", "editor")),
+):
     """提交自然语言问题，Agent 执行 ReAct 循环后返回结果。"""
     result = await run_agent(request.question)
     return AgentQueryResponse(
@@ -52,6 +57,8 @@ async def query(request: AgentQueryRequest):
 
 
 @router.get("/schemas", response_model=SchemasResponse)
-async def get_schemas():
+async def get_schemas(
+    _current_user: User = Depends(require_role("admin", "editor", "viewer")),
+):
     """获取数据库表结构信息。"""
     return SchemasResponse(tables=DB_SCHEMA)
