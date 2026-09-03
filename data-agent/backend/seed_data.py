@@ -2,20 +2,15 @@
 import logging
 import random
 from datetime import date, timedelta
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from app.config import settings
-from app.database import Base
+from app.database import Base, sync_engine
 from app.models.demo_data import Product, Order, OrderItem
+from app.users.models import Role
 from app.logging_config import setup_logging
 
 setup_logging()
 logger = logging.getLogger(__name__)
-
-# 同步引擎（脚本用途）
-SYNC_DB_URL = settings.DATABASE_URL.replace("+aiosqlite", "").replace("+aiomysql", "")
-sync_engine = create_engine(SYNC_DB_URL)
 
 
 PRODUCTS = [
@@ -55,6 +50,19 @@ def seed():
     Base.metadata.create_all(sync_engine)
 
     with Session(sync_engine) as session:
+        # 初始化角色
+        import json
+        roles_data = [
+            ("admin", "超级管理员", json.dumps(["*"])),
+            ("editor", "编辑者", json.dumps(["agent:query", "agent:schemas"])),
+            ("viewer", "查看者", json.dumps(["agent:schemas"])),
+        ]
+        for name, desc, perms in roles_data:
+            role = Role(name=name, description=desc, permissions=perms)
+            session.add(role)
+        session.flush()
+        logger.info(f"已创建 {len(roles_data)} 个角色")
+
         # 插入商品
         products = []
         for name, category, price in PRODUCTS:

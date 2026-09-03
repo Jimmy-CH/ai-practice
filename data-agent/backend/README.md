@@ -12,6 +12,8 @@
 | ORM | SQLAlchemy 2.0 (Async) |
 | 数据库 | SQLite |
 | 数据校验 | Pydantic v2 |
+| 认证 | JWT (python-jose) + bcrypt |
+| OAuth | Authlib (GitHub / 微信) |
 
 ## 项目结构
 
@@ -23,8 +25,19 @@ backend/
 │   │   ├── prompt.py           # ReAct Prompt 模板
 │   │   └── tools.py            # SQL 只读查询工具
 │   ├── api/                # API 路由层
-│   │   ├── agent.py            # Agent 相关接口
+│   │   ├── agent.py            # Agent 接口（RBAC 保护）
+│   │   ├── auth.py             # 登录/注册/OAuth 回调
 │   │   └── router.py           # 路由汇总
+│   ├── auth/               # 认证与权限模块
+│   │   ├── service.py          # JWT 签发/密码哈希
+│   │   ├── dependencies.py     # get_current_user / require_role
+│   │   ├── oauth.py            # GitHub / 微信 OAuth 客户端
+│   │   └── schemas.py          # Token / 登录请求模型
+│   ├── users/              # 用户管理模块
+│   │   ├── models.py           # User / Role / OAuthAccount
+│   │   ├── service.py          # 用户注册/查询/角色分配
+│   │   ├── router.py           # 用户管理 API
+│   │   └── schemas.py          # 用户请求/响应模型
 │   ├── models/             # SQLAlchemy 数据模型
 │   │   └── demo_data.py        # Product / Order / OrderItem
 │   ├── schemas/            # Pydantic 请求/响应模型
@@ -90,6 +103,11 @@ pip install -r requirements.txt
 DATABASE_URL=sqlite+aiosqlite:///./agent_demo.db
 DEEPSEEK_API_KEY=your_deepseek_api_key_here
 DEEPSEEK_BASE_URL=https://api.deepseek.com
+SECRET_KEY=your_jwt_secret_key_here
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+WECHAT_APP_ID=
+WECHAT_APP_SECRET=
 ```
 
 ### 4. 初始化示例数据
@@ -98,7 +116,7 @@ DEEPSEEK_BASE_URL=https://api.deepseek.com
 python seed_data.py
 ```
 
-该脚本会生成 21 个商品、100 个订单及关联的订单明细数据，涵盖电子产品、服装、食品、家居、运动等品类。
+该脚本会生成 3 个角色（admin/editor/viewer）、21 个商品、100 个订单及关联的订单明细数据。
 
 ### 5. 启动服务
 
@@ -107,6 +125,39 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 服务启动后访问 API 文档：`http://localhost:8000/docs`
+
+## 认证与权限
+
+### 角色说明
+
+| 角色 | 权限 |
+|------|------|
+| admin | 所有操作 |
+| editor | Agent 查询 + 查看表结构 |
+| viewer | 仅查看表结构 |
+
+### 获取 Token
+
+```bash
+# 注册
+curl -X POST http://localhost:8000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username": "testuser", "password": "123456"}'
+
+# 登录
+curl -X POST http://localhost:8000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username_or_phone": "testuser", "password": "123456"}'
+```
+
+### 使用 Token
+
+所有 `/api/agent/*` 和 `/api/users/*` 接口需要在请求头中携带 Token：
+
+```bash
+curl http://localhost:8000/api/agent/schemas \
+  -H "Authorization: Bearer <your_access_token>"
+```
 
 ## API 接口
 
