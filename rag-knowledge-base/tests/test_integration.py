@@ -30,7 +30,7 @@ TEST_DATA_DIR = os.path.join(os.path.dirname(__file__), "test_data")
 def mock_external_services():
     """全局 mock 外部 LLM / Embedding 服务（不 mock Chroma，保留真实向量库）"""
     fake_embedding = DeterministicFakeEmbedding(size=64)
-    with patch("app.ingestion.embeddings.OpenAIEmbeddings", return_value=fake_embedding), \
+    with patch("app.ingestion.embeddings.HuggingFaceEmbeddings", return_value=fake_embedding), \
          patch("app.services.llm_service.ChatOpenAI") as mock_llm:
 
         mock_llm.return_value = MagicMock()
@@ -359,7 +359,7 @@ class TestRAGEngineIntegration:
         monkeypatch.setattr("app.config.settings.CHUNK_OVERLAP", 20)
         fake_embedding = DeterministicFakeEmbedding(size=64)
 
-        with patch("app.ingestion.embeddings.OpenAIEmbeddings", return_value=fake_embedding), \
+        with patch("app.ingestion.embeddings.HuggingFaceEmbeddings", return_value=fake_embedding), \
              patch("app.services.llm_service.ChatOpenAI"):
             engine = RAGEngine()
 
@@ -379,7 +379,7 @@ class TestRAGEngineIntegration:
         monkeypatch.setattr("app.config.settings.VECTOR_DB_PATH", str(tmp_path / "chroma_pdf"))
         fake_embedding = DeterministicFakeEmbedding(size=64)
 
-        with patch("app.ingestion.embeddings.OpenAIEmbeddings", return_value=fake_embedding), \
+        with patch("app.ingestion.embeddings.HuggingFaceEmbeddings", return_value=fake_embedding), \
              patch("app.services.llm_service.ChatOpenAI"):
             engine = RAGEngine()
 
@@ -399,7 +399,7 @@ class TestRAGEngineIntegration:
         monkeypatch.setattr("app.config.settings.CHUNK_OVERLAP", 20)
         fake_embedding = DeterministicFakeEmbedding(size=64)
 
-        with patch("app.ingestion.embeddings.OpenAIEmbeddings", return_value=fake_embedding), \
+        with patch("app.ingestion.embeddings.HuggingFaceEmbeddings", return_value=fake_embedding), \
              patch("app.services.llm_service.ChatOpenAI"):
             engine = RAGEngine()
 

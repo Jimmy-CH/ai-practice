@@ -1,4 +1,5 @@
 # app/api/endpoints.py
+import asyncio
 import time
 import uuid
 import shutil
@@ -78,7 +79,8 @@ async def ask_knowledge_base(payload: AskRequest):
     start_time = time.time()
     try:
         rag_engine = get_rag_engine()
-        result = rag_engine.ask(payload.question, top_k=payload.top_k)
+        # 使用 asyncio.to_thread 将同步阻塞调用放入线程池，避免阻塞事件循环
+        result = await asyncio.to_thread(rag_engine.ask, payload.question, top_k=payload.top_k)
         latency_ms = round((time.time() - start_time) * 1000, 2)
         result["latency_ms"] = latency_ms
 

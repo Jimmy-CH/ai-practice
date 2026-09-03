@@ -21,7 +21,7 @@ def test_settings_defaults():
     )
     assert s.LLM_MODEL == "deepseek-chat"
     assert s.DEEPSEEK_BASE_URL == "https://api.deepseek.com"
-    assert s.EMBEDDING_MODEL == "text-embedding-3-small"
+    assert s.EMBEDDING_MODEL == "sentence-transformers/all-MiniLM-L6-v2"
     assert s.CHUNK_SIZE == 500
     assert s.CHUNK_OVERLAP == 50
     assert s.TOP_K == 5

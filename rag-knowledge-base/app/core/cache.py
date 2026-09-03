@@ -13,7 +13,7 @@ logger = logging.getLogger("RAG_API")
 class SemanticCache:
     def __init__(self):
         self.redis_client = Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=0)
-        # 复用 EmbeddingService，避免重复创建 OpenAIEmbeddings 实例
+        # 复用 EmbeddingService，使用本地 HuggingFace 模型
         self._embedding_service = EmbeddingService()
         # 使用 LangChain 的 Redis 向量存储进行语义检索
         self.vector_store = RedisVectorStore.from_existing_index(

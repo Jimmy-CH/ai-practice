@@ -18,7 +18,7 @@ sys.modules["app.core.cache"] = _mock_cache_module
 @pytest.fixture(scope="module")
 def mock_services():
     """全局 mock 外部依赖"""
-    with patch("app.ingestion.embeddings.OpenAIEmbeddings") as mock_emb, \
+    with patch("app.ingestion.embeddings.HuggingFaceEmbeddings") as mock_emb, \
          patch("app.services.llm_service.ChatOpenAI") as mock_llm, \
          patch("app.services.vector_db.Chroma") as mock_chroma:
 

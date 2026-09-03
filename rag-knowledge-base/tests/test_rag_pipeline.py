@@ -16,7 +16,7 @@ def test_ingest_document_does_not_call_persist(tmp_path, monkeypatch):
     monkeypatch.setattr("app.config.settings.VECTOR_DB_PATH", str(tmp_path / "chroma"))
     fake_embedding = DeterministicFakeEmbedding(size=8)
 
-    with patch("app.ingestion.embeddings.OpenAIEmbeddings", return_value=fake_embedding), \
+    with patch("app.ingestion.embeddings.HuggingFaceEmbeddings", return_value=fake_embedding), \
          patch("app.services.llm_service.ChatOpenAI"):
         engine = RAGEngine()
 
