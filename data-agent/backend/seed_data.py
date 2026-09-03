@@ -1,4 +1,5 @@
 """示例数据初始化脚本。可重复运行（先清空再插入）。"""
+import logging
 import random
 from datetime import date, timedelta
 from sqlalchemy import create_engine
@@ -7,6 +8,10 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import Base
 from app.models.demo_data import Product, Order, OrderItem
+from app.logging_config import setup_logging
+
+setup_logging()
+logger = logging.getLogger(__name__)
 
 # 同步引擎（脚本用途）
 SYNC_DB_URL = settings.DATABASE_URL.replace("+aiosqlite", "").replace("+aiomysql", "")
@@ -85,7 +90,7 @@ def seed():
                 session.add(oi)
 
         session.commit()
-        print(f"已插入 {len(products)} 个商品, {len(orders)} 个订单")
+        logger.info(f"已插入 {len(products)} 个商品, {len(orders)} 个订单")
 
 
 if __name__ == "__main__":

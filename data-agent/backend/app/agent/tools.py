@@ -1,7 +1,10 @@
 """Agent 工具定义：SQL 只读查询。"""
+import logging
 from sqlalchemy import create_engine, text
 from langchain_core.tools import tool
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 # 同步引擎供工具使用
 SYNC_DB_URL = settings.DATABASE_URL.replace("+aiosqlite", "").replace("+aiomysql", "")
@@ -14,9 +17,11 @@ def _check_sql_safety(query: str) -> str | None:
     """检查 SQL 是否安全。返回 None 表示安全，否则返回错误信息。"""
     cleaned = query.strip().upper()
     if not cleaned.startswith("SELECT"):
+        logger.warning(f"SQL 安全检查失败：非 SELECT 语句: {query[:50]}")
         return "安全错误：只允许 SELECT 查询"
     for keyword in FORBIDDEN_KEYWORDS:
         if keyword in cleaned:
+            logger.warning(f"SQL 安全检查失败：包含禁止关键字 {keyword}: {query[:50]}")
             return f"安全错误：禁止使用 {keyword} 语句"
     return None
 
@@ -39,6 +44,7 @@ def sql_query(query: str) -> str:
             rows = result.fetchall()
 
             if not rows:
+                logger.info(f"SQL 查询结果为空: {query[:50]}")
                 return "查询结果为空"
 
             # 格式化为文本表格
@@ -51,7 +57,9 @@ def sql_query(query: str) -> str:
             if len(rows) > 50:
                 lines.append(f"... (共 {len(rows)} 行，仅显示前 50 行)")
 
+            logger.info(f"SQL 查询成功，返回 {len(rows)} 行: {query[:50]}")
             return "\n".join(lines)
 
     except Exception as e:
+        logger.error(f"SQL 执行错误: {e}, 查询: {query[:100]}")
         return f"SQL 执行错误: {str(e)}"

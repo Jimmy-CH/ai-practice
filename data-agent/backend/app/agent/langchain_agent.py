@@ -1,4 +1,5 @@
 """LangChain ReAct Agent 组装。"""
+import logging
 from typing import List
 from pydantic import BaseModel
 from langchain_openai import ChatOpenAI
@@ -8,6 +9,8 @@ from langchain_core.prompts import PromptTemplate
 from app.config import settings
 from app.agent.tools import sql_query
 from app.agent.prompt import REACT_PROMPT_TEMPLATE
+
+logger = logging.getLogger(__name__)
 
 
 class AgentStep(BaseModel):
@@ -67,6 +70,7 @@ def _parse_intermediate_steps(steps) -> List[AgentStep]:
 
 async def run_agent(question: str) -> AgentResult:
     """运行数据分析 Agent。"""
+    logger.info(f"Agent 开始处理问题: {question[:100]}{'...' if len(question) > 100 else ''}")
     llm = _build_llm()
     tools = [sql_query]
 
@@ -89,12 +93,14 @@ async def run_agent(question: str) -> AgentResult:
         if "output" in result:
             steps.append(AgentStep(type="thought", content="已得出最终答案"))
 
+        logger.info(f"Agent 处理完成，共执行 {len(steps)} 个步骤")
         return AgentResult(
             answer=result.get("output", "抱歉，我无法回答这个问题。"),
             steps=steps,
             success=True,
         )
     except Exception as e:
+        logger.error(f"Agent 执行出错: {e}", exc_info=True)
         return AgentResult(
             answer=f"Agent 执行出错: {str(e)}",
             steps=[],
