@@ -9,6 +9,7 @@ class Settings:
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./agent_demo.db")
     DEEPSEEK_API_KEY: str = os.getenv("DEEPSEEK_API_KEY")
     DEEPSEEK_BASE_URL: str = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+    CORS_ORIGINS: list[str] = os.getenv("CORS_ORIGINS", "*").split(",")
 
 
 settings = Settings()
