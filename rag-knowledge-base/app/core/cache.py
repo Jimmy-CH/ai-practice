@@ -4,8 +4,8 @@ import logging
 from typing import Optional, Dict, Any
 from redis import Redis
 from langchain_community.vectorstores import Redis as RedisVectorStore
-from langchain_openai import OpenAIEmbeddings
 from app.config import settings
+from app.ingestion.embeddings import EmbeddingService
 
 logger = logging.getLogger("RAG_API")
 
@@ -13,11 +13,12 @@ logger = logging.getLogger("RAG_API")
 class SemanticCache:
     def __init__(self):
         self.redis_client = Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=0)
-        self.embeddings = OpenAIEmbeddings(model=settings.EMBEDDING_MODEL, openai_api_key=settings.OPENAI_API_KEY)
+        # 复用 EmbeddingService，避免重复创建 OpenAIEmbeddings 实例
+        self._embedding_service = EmbeddingService()
         # 使用 LangChain 的 Redis 向量存储进行语义检索
         self.vector_store = RedisVectorStore.from_existing_index(
             index_name="rag_cache_index",
-            embedding=self.embeddings,
+            embedding=self._embedding_service.embeddings,
             redis_url=f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}"
         )
         self.similarity_threshold = 0.95

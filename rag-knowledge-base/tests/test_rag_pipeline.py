@@ -5,9 +5,8 @@ from unittest.mock import MagicMock, patch
 from langchain_core.documents import Document
 from langchain_core.embeddings import DeterministicFakeEmbedding
 
-# 注意：RAGEngine 在模块级 import 会触发全局单例 rag_engine 的真实构造
-# （OpenAIEmbeddings / Chroma 等），从而破坏 test_endpoints.py 的 mock 隔离，
-# 因此这里延迟到测试函数内 import。
+# 注意：RAGEngine 构造时会初始化真实的 OpenAIEmbeddings / Chroma 等外部依赖，
+# 因此需要在 patch 上下文内实例化，或使用 get_rag_engine() 延迟初始化。
 
 
 def test_ingest_document_does_not_call_persist(tmp_path, monkeypatch):
@@ -17,7 +16,7 @@ def test_ingest_document_does_not_call_persist(tmp_path, monkeypatch):
     monkeypatch.setattr("app.config.settings.VECTOR_DB_PATH", str(tmp_path / "chroma"))
     fake_embedding = DeterministicFakeEmbedding(size=8)
 
-    with patch("app.ingestion.embedings.OpenAIEmbeddings", return_value=fake_embedding), \
+    with patch("app.ingestion.embeddings.OpenAIEmbeddings", return_value=fake_embedding), \
          patch("app.services.llm_service.ChatOpenAI"):
         engine = RAGEngine()
 

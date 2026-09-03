@@ -33,4 +33,8 @@ def test_settings_env_file_path():
     """env_file 应指向项目根目录下的 .env"""
     s = Settings()
     expected = str(BASE_DIR / ".env")
-    assert s.model_config.get("env_file") == expected
+    # Pydantic V2: model_config 可能是 dict 或 SettingsConfigDict
+    env_file = s.model_config.get("env_file")
+    if isinstance(env_file, dict):
+        env_file = env_file.get("env_file")
+    assert env_file == expected

@@ -1,16 +1,16 @@
 # app/core/rag_pipeline.py
 import os
 import logging
+from functools import lru_cache
 from typing import Dict, Any
 
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 
 from app.config import settings
 from app.ingestion.parsers import DocumentParser
 from app.ingestion.chunking import TextChunker
-from app.ingestion.embedings import EmbeddingService
+from app.ingestion.embeddings import EmbeddingService
 from app.services.llm_service import LLMService
 from app.services.vector_db import VectorDBService
 
@@ -41,7 +41,9 @@ class RAGEngine:
     def ask(self, question: str, top_k: int = None) -> Dict[str, Any]:
         """执行检索与 LLM 生成，返回回答及引用来源"""
         k = top_k or settings.TOP_K
-        retriever = self.vector_db.as_retriever(search_kwargs={"k": k})
+
+        # 仅检索一次，复用结果构建 chain 和来源列表
+        docs = self.vector_db.similarity_search(question, k=k)
 
         prompt = ChatPromptTemplate.from_template("""
             你是一个企业级知识库助手。请根据以下上下文回答用户的问题。
@@ -59,16 +61,9 @@ class RAGEngine:
                 for doc in docs
             )
 
-        rag_chain = (
-            {"context": retriever | format_docs, "question": RunnablePassthrough()}
-            | prompt
-            | self.llm_service.llm
-            | StrOutputParser()
-        )
-
-        # 获取原始检索文档用于结构化返回
-        docs = retriever.invoke(question)
-        answer = rag_chain.invoke(question)
+        context = format_docs(docs)
+        chain = prompt | self.llm_service.llm | StrOutputParser()
+        answer = chain.invoke({"context": context, "question": question})
 
         sources = [
             {
@@ -83,5 +78,7 @@ class RAGEngine:
         return {"answer": answer, "sources": sources}
 
 
-# 全局单例引擎
-rag_engine = RAGEngine()
+@lru_cache(maxsize=1)
+def get_rag_engine() -> RAGEngine:
+    """延迟初始化的 RAG 引擎单例，避免模块导入时触发外部服务连接"""
+    return RAGEngine()

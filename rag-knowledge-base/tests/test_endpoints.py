@@ -18,7 +18,7 @@ sys.modules["app.core.cache"] = _mock_cache_module
 @pytest.fixture(scope="module")
 def mock_services():
     """全局 mock 外部依赖"""
-    with patch("app.ingestion.embedings.OpenAIEmbeddings") as mock_emb, \
+    with patch("app.ingestion.embeddings.OpenAIEmbeddings") as mock_emb, \
          patch("app.services.llm_service.ChatOpenAI") as mock_llm, \
          patch("app.services.vector_db.Chroma") as mock_chroma:
 
@@ -101,7 +101,7 @@ class TestAskEndpoint:
             ],
         }
 
-        with patch("app.api.endpoints.rag_engine", mock_rag):
+        with patch("app.api.endpoints.get_rag_engine", return_value=mock_rag):
             resp = client.post("/v1/ask", json={"question": "测试问题"})
 
         assert resp.status_code == 200

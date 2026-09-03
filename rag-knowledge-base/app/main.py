@@ -1,6 +1,7 @@
 # app/main.py
 import logging
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from app.api.endpoints import router
 from app.core.metrics import setup_metrics
 from contextlib import asynccontextmanager
@@ -22,6 +23,15 @@ async def lifespan(app: FastAPI):
     logger.info("RAG Service is shutting down...")
 
 app = FastAPI(title="企业级 RAG 知识库问答 API", version="2.0.0", lifespan=lifespan)
+
+# 配置 CORS 中间件
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # 挂载监控指标
 setup_metrics(app)

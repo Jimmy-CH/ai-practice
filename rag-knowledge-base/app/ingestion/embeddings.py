@@ -1,4 +1,4 @@
-# app/ingestion/embedings.py
+# app/ingestion/embeddings.py
 from langchain_openai import OpenAIEmbeddings
 from app.config import settings
 

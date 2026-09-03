@@ -1,7 +1,7 @@
 # app/config.py
 import os
 from pathlib import Path
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # 项目根目录（app/ 的上一级）
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -35,11 +35,12 @@ class Settings(BaseSettings):
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
 
-    class Config:
+    model_config = SettingsConfigDict(
         # 指定环境变量文件路径
-        env_file = str(BASE_DIR / ".env")
+        env_file=str(BASE_DIR / ".env"),
         # 允许字段名大小写不敏感匹配环境变量
-        case_sensitive = False
+        case_sensitive=False,
+    )
 
 
 # 实例化全局配置单例
