@@ -29,9 +29,14 @@ class ColorFormatter(logging.Formatter):
     RESET = "\033[0m"
 
     def format(self, record: logging.LogRecord) -> str:
-        color = self.COLORS.get(record.levelno, self.RESET)
-        record.levelname = f"{color}{record.levelname}{self.RESET}"
-        return super().format(record)
+        # 保存原始 levelname，上色后临时修改 record，格式化完立即还原
+        # 确保不影响共享的 LogRecord 对象和其他 handler（如文件 handler）
+        original_levelname = record.levelname
+        color = self.COLORS.get(record.levelno, "")
+        record.levelname = f"{color}{original_levelname}{self.RESET}"
+        result = super().format(record)
+        record.levelname = original_levelname
+        return result
 
 
 def setup_logging(level: str = "INFO") -> None:
