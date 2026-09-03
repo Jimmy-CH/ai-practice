@@ -1,14 +1,10 @@
 """Agent 工具定义：SQL 只读查询。"""
 import logging
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 from langchain_core.tools import tool
-from app.config import settings
+from app.database import sync_engine
 
 logger = logging.getLogger(__name__)
-
-# 同步引擎供工具使用
-SYNC_DB_URL = settings.DATABASE_URL.replace("+aiosqlite", "").replace("+aiomysql", "")
-sync_engine = create_engine(SYNC_DB_URL)
 
 FORBIDDEN_KEYWORDS = ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "CREATE", "TRUNCATE"]
 

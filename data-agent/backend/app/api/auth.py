@@ -3,6 +3,7 @@ import random
 import string
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
 from jose import JWTError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,13 +48,28 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
-    """用户名/手机号 + 密码登录。"""
+    """用户名/手机号 + 密码登录（JSON 格式）。"""
     user = await get_user_by_username(db, req.username_or_phone)
     if user is None:
         user = await get_user_by_phone(db, req.username_or_phone)
     if user is None or not user.hashed_password:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "用户名或密码错误")
     if not verify_password(req.password, user.hashed_password):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "用户名或密码错误")
+    if not user.is_active:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "账号已被禁用")
+    return _tokens_for_user(user)
+
+
+@router.post("/token", response_model=TokenResponse)
+async def oauth_token(form: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
+    """OAuth2 标准登录端点（form 表单格式），供 Swagger UI Authorize 使用。"""
+    user = await get_user_by_username(db, form.username)
+    if user is None:
+        user = await get_user_by_phone(db, form.username)
+    if user is None or not user.hashed_password:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "用户名或密码错误")
+    if not verify_password(form.password, user.hashed_password):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "用户名或密码错误")
     if not user.is_active:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "账号已被禁用")
