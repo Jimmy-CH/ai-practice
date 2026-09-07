@@ -46,6 +46,9 @@ onMounted(() => {
           <el-menu-item index="/users" v-if="isAdmin">
             <span>👥 用户管理</span>
           </el-menu-item>
+          <el-menu-item index="/profile">
+            <span>👤 个人中心</span>
+          </el-menu-item>
         </el-menu>
       </el-aside>
       <el-main :style="{ background: 'var(--bg-secondary)', padding: '20px' }">
