@@ -1,5 +1,10 @@
 """ReAct Agent 的 prompt 模板。"""
 
+# 内置表结构描述
+BUILTIN_SCHEMA = """- products: id(整数), name(文本), category(文本), price(浮点数), created_at(日期时间)
+- orders: id(整数), customer_name(文本), order_date(日期), status(文本)
+- order_items: id(整数,外键→orders.id), product_id(整数,外键→products.id), quantity(整数), unit_price(浮点数)"""
+
 REACT_PROMPT_TEMPLATE = """你是一个数据分析助手，可以通过 SQL 查询数据库来回答用户的问题。
 
 你可以使用以下工具：
@@ -27,9 +32,7 @@ Final Answer: 对用户问题的最终回答
 8. 在给出 Final Answer 后，请在答案末尾另起一行，以"建议追问："开头，列出 2-3 个用户可以追问的相关问题，每个问题用"｜"分隔。例如：建议追问：各品类月度趋势如何？｜哪个品类增长最快？｜Top 5 商品是哪些？
 
 数据库表结构：
-- products: id(整数), name(文本), category(文本), price(浮点数), created_at(日期时间)
-- orders: id(整数), customer_name(文本), order_date(日期), status(文本)
-- order_items: id(整数), order_id(整数,外键→orders.id), product_id(整数,外键→products.id), quantity(整数), unit_price(浮点数)
+{schema}
 
 {history}
 开始！

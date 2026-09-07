@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
-from sqlalchemy import text as sql_text
+from sqlalchemy import select, text as sql_text
+from sqlalchemy.orm import selectinload
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.schemas.agent import (
     AgentQueryRequest, AgentQueryResponse, AgentStepResponse,
     SchemasResponse, TableSchema, ChartData,
@@ -10,7 +12,8 @@ from app.schemas.agent import (
 from app.agent.langchain_agent import run_agent, stream_agent
 from app.auth.dependencies import require_role
 from app.users.models import User
-from app.database import sync_engine
+from app.database import sync_engine, get_db
+from app.models.datasource import DataSource
 
 router = APIRouter(prefix="/agent", tags=["Agent"])
 
@@ -47,13 +50,41 @@ DB_SCHEMA = [
 ]
 
 
+async def _get_user_tables(db: AsyncSession, user_id: int) -> list:
+    """获取用户的所有数据源表结构信息。"""
+    query = (
+        select(DataSource)
+        .where(DataSource.uploaded_by == user_id)
+        .options(selectinload(DataSource.columns))
+    )
+    result = await db.execute(query)
+    sources = result.scalars().all()
+    return [
+        {
+            "table_name": ds.table_name,
+            "description": ds.description or "",
+            "columns": [
+                {
+                    "column_name": c.column_name,
+                    "column_type": c.column_type,
+                    "description": c.description or "",
+                }
+                for c in ds.columns
+            ],
+        }
+        for ds in sources
+    ]
+
+
 @router.post("/query", response_model=AgentQueryResponse)
 async def query(
     request: AgentQueryRequest,
-    _current_user: User = Depends(require_role("admin", "editor")),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("admin", "editor")),
 ):
     """提交自然语言问题，Agent 执行 ReAct 循环后返回结果。"""
-    result = await run_agent(request.question, [h.dict() for h in request.history])
+    user_tables = await _get_user_tables(db, current_user.id)
+    result = await run_agent(request.question, [h.dict() for h in request.history], user_tables)
     return AgentQueryResponse(
         answer=result.answer,
         steps=[AgentStepResponse(type=s.type, content=s.content) for s in result.steps],
@@ -67,11 +98,13 @@ async def query(
 async def query_stream(
     request: Request,
     req: AgentQueryRequest,
-    _current_user: User = Depends(require_role("admin", "editor")),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("admin", "editor")),
 ):
     """SSE 流式查询。"""
+    user_tables = await _get_user_tables(db, current_user.id)
     return StreamingResponse(
-        stream_agent(req.question, request, [h.dict() for h in req.history]),
+        stream_agent(req.question, request, [h.dict() for h in req.history], user_tables),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

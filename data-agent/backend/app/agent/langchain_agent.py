@@ -9,7 +9,7 @@ from langchain_core.prompts import PromptTemplate
 
 from app.config import settings
 from app.agent.tools import sql_query, generate_chart
-from app.agent.prompt import REACT_PROMPT_TEMPLATE
+from app.agent.prompt import REACT_PROMPT_TEMPLATE, BUILTIN_SCHEMA
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +46,28 @@ def _format_history(history: List[Dict[str, str]]) -> str:
         lines.append(f"{role}: {msg['content'][:200]}")
     lines.append("---")
     return "\n".join(lines)
+
+
+def _build_schema(user_tables: List[Dict] = None) -> str:
+    """构建完整的表结构描述（内置 + 用户上传）。"""
+    parts = [BUILTIN_SCHEMA]
+    if user_tables:
+        for tbl in user_tables:
+            table_name = tbl["table_name"]
+            desc = tbl.get("description", "")
+            cols = tbl.get("columns", [])
+            col_strs = []
+            for c in cols:
+                col_desc = c.get("description", "")
+                col_str = f"{c['column_name']}({c['column_type']})"
+                if col_desc:
+                    col_str += f" - {col_desc}"
+                col_strs.append(col_str)
+            line = f"- {table_name}: {', '.join(col_strs)}"
+            if desc:
+                line += f"  -- {desc}"
+            parts.append(line)
+    return "\n".join(parts)
 
 
 def _parse_suggestions(answer: str) -> tuple:
@@ -98,7 +120,7 @@ def _parse_intermediate_steps(steps) -> List[AgentStep]:
     return result_steps
 
 
-async def run_agent(question: str, history: List[Dict[str, str]] = None) -> AgentResult:
+async def run_agent(question: str, history: List[Dict[str, str]] = None, user_tables: List[Dict] = None) -> AgentResult:
     """运行数据分析 Agent。"""
     logger.info(f"Agent 开始处理问题: {question[:100]}{'...' if len(question) > 100 else ''}")
     llm = _build_llm()
@@ -106,6 +128,7 @@ async def run_agent(question: str, history: List[Dict[str, str]] = None) -> Agen
 
     prompt = PromptTemplate.from_template(REACT_PROMPT_TEMPLATE)
     history_text = _format_history(history or [])
+    schema_text = _build_schema(user_tables)
 
     agent = create_react_agent(llm, tools, prompt)
     executor = AgentExecutor(
@@ -117,7 +140,7 @@ async def run_agent(question: str, history: List[Dict[str, str]] = None) -> Agen
     )
 
     try:
-        result = await executor.ainvoke({"input": question, "history": history_text})
+        result = await executor.ainvoke({"input": question, "history": history_text, "schema": schema_text})
         steps = _parse_intermediate_steps(result.get("intermediate_steps", []))
 
         # 检测图表数据
@@ -152,12 +175,13 @@ async def run_agent(question: str, history: List[Dict[str, str]] = None) -> Agen
         )
 
 
-async def stream_agent(question: str, request, history: List[Dict[str, str]] = None):
+async def stream_agent(question: str, request, history: List[Dict[str, str]] = None, user_tables: List[Dict] = None):
     """流式运行 Agent，yield SSE 事件。"""
     llm = _build_llm()
     tools = [sql_query, generate_chart]
     prompt = PromptTemplate.from_template(REACT_PROMPT_TEMPLATE)
     history_text = _format_history(history or [])
+    schema_text = _build_schema(user_tables)
     agent = create_react_agent(llm, tools, prompt)
     executor = AgentExecutor(
         agent=agent, tools=tools, max_iterations=5,
@@ -165,7 +189,7 @@ async def stream_agent(question: str, request, history: List[Dict[str, str]] = N
     )
 
     try:
-        async for event in executor.astream_events({"input": question, "history": history_text}, version="v2"):
+        async for event in executor.astream_events({"input": question, "history": history_text, "schema": schema_text}, version="v2"):
             if await request.is_disconnected():
                 return
 
@@ -182,7 +206,7 @@ async def stream_agent(question: str, request, history: List[Dict[str, str]] = N
                 output = event["data"].get("output", "")
                 yield f"event: observation\ndata: {json.dumps({'content': str(output)}, ensure_ascii=False)}\n\n"
 
-        result = await executor.ainvoke({"input": question, "history": history_text})
+        result = await executor.ainvoke({"input": question, "history": history_text, "schema": schema_text})
         raw_answer = result.get("output", "")
         answer, suggestions = _parse_suggestions(raw_answer)
         yield f"event: answer\ndata: {json.dumps({'content': answer, 'suggestions': suggestions}, ensure_ascii=False)}\n\n"
