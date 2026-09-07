@@ -53,12 +53,13 @@ async def query(
     _current_user: User = Depends(require_role("admin", "editor")),
 ):
     """提交自然语言问题，Agent 执行 ReAct 循环后返回结果。"""
-    result = await run_agent(request.question)
+    result = await run_agent(request.question, [h.dict() for h in request.history])
     return AgentQueryResponse(
         answer=result.answer,
         steps=[AgentStepResponse(type=s.type, content=s.content) for s in result.steps],
         success=result.success,
         chart_data=ChartData(**result.chart_data) if result.chart_data else None,
+        suggestions=result.suggestions,
     )
 
 
@@ -70,7 +71,7 @@ async def query_stream(
 ):
     """SSE 流式查询。"""
     return StreamingResponse(
-        stream_agent(req.question, request),
+        stream_agent(req.question, request, [h.dict() for h in req.history]),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
