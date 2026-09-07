@@ -4,11 +4,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.endpoints import router
 from app.core.metrics import setup_metrics
+from app.config import settings
 from contextlib import asynccontextmanager
 
 # 配置日志
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, settings.LOG_LEVEL, logging.INFO),
     format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
 )
 logger = logging.getLogger("RAG_API")
@@ -24,10 +25,16 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="企业级 RAG 知识库问答 API", version="2.0.0", lifespan=lifespan)
 
-# 配置 CORS 中间件
+# 配置 CORS 中间件（生产环境通过 ALLOWED_ORIGINS 环境变量控制）
+_allowed_origins = [
+    origin.strip()
+    for origin in getattr(settings, "ALLOWED_ORIGINS", "*").split(",")
+    if origin.strip()
+] or ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -188,3 +188,13 @@ def _tokens_for_user(user) -> TokenResponse:
         access_token=create_access_token(token_data),
         refresh_token=create_refresh_token(token_data),
     )
+
+
+@router.get("/roles")
+async def list_roles(db: AsyncSession = Depends(get_db)):
+    """获取所有角色列表。"""
+    from sqlalchemy import select
+    from app.users.models import Role
+    result = await db.execute(select(Role))
+    roles = result.scalars().all()
+    return [{"id": r.id, "name": r.name, "description": r.description} for r in roles]

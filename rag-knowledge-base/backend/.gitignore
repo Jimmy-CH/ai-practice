@@ -163,3 +163,10 @@ cython_debug/
 uploaded_files/
 chroma_db/
 tests/test_data/
+
+# 生产部署配置（含敏感信息）
+.env.prod
+backups/
+
+# Docker 构建缓存
+docker/nginx/ssl/

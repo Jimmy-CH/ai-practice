@@ -1,4 +1,5 @@
 """LangChain ReAct Agent 组装。"""
+import json
 import logging
 from typing import List
 from pydantic import BaseModel
@@ -7,7 +8,7 @@ from langchain.agents import AgentExecutor, create_react_agent
 from langchain_core.prompts import PromptTemplate
 
 from app.config import settings
-from app.agent.tools import sql_query
+from app.agent.tools import sql_query, generate_chart
 from app.agent.prompt import REACT_PROMPT_TEMPLATE
 
 logger = logging.getLogger(__name__)
@@ -22,6 +23,7 @@ class AgentResult(BaseModel):
     answer: str
     steps: List[AgentStep]
     success: bool
+    chart_data: dict | None = None
 
 
 def _build_llm() -> ChatOpenAI:
@@ -72,7 +74,7 @@ async def run_agent(question: str) -> AgentResult:
     """运行数据分析 Agent。"""
     logger.info(f"Agent 开始处理问题: {question[:100]}{'...' if len(question) > 100 else ''}")
     llm = _build_llm()
-    tools = [sql_query]
+    tools = [sql_query, generate_chart]
 
     prompt = PromptTemplate.from_template(REACT_PROMPT_TEMPLATE)
 
@@ -89,7 +91,15 @@ async def run_agent(question: str) -> AgentResult:
         result = await executor.ainvoke({"input": question})
         steps = _parse_intermediate_steps(result.get("intermediate_steps", []))
 
-        # 添加最终 Thought
+        # 检测图表数据
+        chart_data = None
+        for action, observation in result.get("intermediate_steps", []):
+            if hasattr(action, 'tool') and action.tool == 'generate_chart':
+                try:
+                    chart_data = json.loads(observation)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
         if "output" in result:
             steps.append(AgentStep(type="thought", content="已得出最终答案"))
 
@@ -98,6 +108,7 @@ async def run_agent(question: str) -> AgentResult:
             answer=result.get("output", "抱歉，我无法回答这个问题。"),
             steps=steps,
             success=True,
+            chart_data=chart_data,
         )
     except Exception as e:
         logger.error(f"Agent 执行出错: {e}", exc_info=True)
@@ -106,3 +117,39 @@ async def run_agent(question: str) -> AgentResult:
             steps=[],
             success=False,
         )
+
+
+async def stream_agent(question: str, request):
+    """流式运行 Agent，yield SSE 事件。"""
+    llm = _build_llm()
+    tools = [sql_query, generate_chart]
+    prompt = PromptTemplate.from_template(REACT_PROMPT_TEMPLATE)
+    agent = create_react_agent(llm, tools, prompt)
+    executor = AgentExecutor(
+        agent=agent, tools=tools, max_iterations=5,
+        verbose=True, handle_parsing_errors=True,
+    )
+
+    try:
+        async for event in executor.astream_events({"input": question}, version="v2"):
+            if await request.is_disconnected():
+                return
+
+            kind = event.get("event", "")
+            if kind == "on_chat_model_stream":
+                content = event["data"]["chunk"].content
+                if content:
+                    yield f"event: thought\ndata: {json.dumps({'content': content}, ensure_ascii=False)}\n\n"
+            elif kind == "on_tool_start":
+                tool_name = event.get("name", "")
+                tool_input = event["data"].get("input", {})
+                yield f"event: action\ndata: {json.dumps({'content': tool_name, 'input': str(tool_input)}, ensure_ascii=False)}\n\n"
+            elif kind == "on_tool_end":
+                output = event["data"].get("output", "")
+                yield f"event: observation\ndata: {json.dumps({'content': str(output)}, ensure_ascii=False)}\n\n"
+
+        result = await executor.ainvoke({"input": question})
+        yield f"event: answer\ndata: {json.dumps({'content': result.get('output', '')}, ensure_ascii=False)}\n\n"
+        yield f"event: done\ndata: {json.dumps({'success': True})}\n\n"
+    except Exception as e:
+        yield f"event: error\ndata: {json.dumps({'content': str(e)})}\n\n"

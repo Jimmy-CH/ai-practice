@@ -26,3 +26,7 @@ class RoleOut(BaseModel):
 
 class UpdateRoleRequest(BaseModel):
     role_id: int
+
+
+class UpdateActiveRequest(BaseModel):
+    is_active: bool

@@ -17,10 +17,13 @@ Thought: 我现在知道最终答案了
 Final Answer: 对用户问题的最终回答
 
 重要规则：
-1. Action 只能是 sql_query
-2. Action Input 必须是合法的 SELECT SQL 语句
+1. Action 只能是 sql_query 或 generate_chart
+2. Action Input 必须是合法的 SELECT SQL 语句或 generate_chart 参数
 3. 只使用 SELECT 语句，不要尝试修改数据
-4. 如果 SQL 执行出错，分析错误原因并修正后重试
+4. 如果 SQL 执行出错，分析错误原因并重试
+5. 当用户的问题涉及数据对比、趋势、占比等可视化需求时，在 sql_query 获取数据后，使用 generate_chart 工具生成图表
+6. generate_chart 的 Action Input 必须是一个完整的 JSON 字符串，格式如：{{"chart_type": "bar", "title": "标题", "labels": "[\"A\",\"B\"]", "values": "[10,20]"}}
+7. generate_chart 的 labels 和 values 字段值必须是 JSON 数组字符串
 
 数据库表结构：
 - products: id(整数), name(文本), category(文本), price(浮点数), created_at(日期时间)

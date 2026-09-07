@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import StreamingResponse
 from app.schemas.agent import (
     AgentQueryRequest, AgentQueryResponse, AgentStepResponse,
-    SchemasResponse, TableSchema
+    SchemasResponse, TableSchema, ChartData
 )
-from app.agent.langchain_agent import run_agent
+from app.agent.langchain_agent import run_agent, stream_agent
 from app.auth.dependencies import require_role
 from app.users.models import User
 
@@ -53,6 +54,21 @@ async def query(
         answer=result.answer,
         steps=[AgentStepResponse(type=s.type, content=s.content) for s in result.steps],
         success=result.success,
+        chart_data=ChartData(**result.chart_data) if result.chart_data else None,
+    )
+
+
+@router.post("/query/stream")
+async def query_stream(
+    request: Request,
+    req: AgentQueryRequest,
+    _current_user: User = Depends(require_role("admin", "editor")),
+):
+    """SSE 流式查询。"""
+    return StreamingResponse(
+        stream_agent(req.question, request),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 
