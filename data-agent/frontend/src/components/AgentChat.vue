@@ -7,6 +7,9 @@ import { BarChart, LineChart, PieChart } from 'echarts/charts'
 import { TitleComponent, TooltipComponent, LegendComponent, GridComponent } from 'echarts/components'
 import { useAgentChat } from '../composables/useAgentChat'
 import { exportToCSV, parseObservationTable } from '../utils/export'
+import { saveQuery } from '../api/query'
+import { createShare } from '../api/share'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 use([CanvasRenderer, BarChart, LineChart, PieChart, TitleComponent, TooltipComponent, LegendComponent, GridComponent])
 
@@ -107,6 +110,45 @@ function handleExport(msg: any) {
   if (tableData) exportToCSV(tableData, 'query_result')
 }
 
+async function handleSave(msg: any) {
+  // 找到对应的用户问题
+  const msgIdx = messages.value.indexOf(msg)
+  const userMsg = msgIdx > 0 ? messages.value[msgIdx - 1] : null
+  if (!userMsg || userMsg.role !== 'user') return
+
+  try {
+    const { value: name } = await ElMessageBox.prompt('给这个查询起个名字', '收藏查询', {
+      confirmButtonText: '保存',
+      cancelButtonText: '取消',
+      inputPlaceholder: '例如：各品类销售额汇总',
+    })
+    await saveQuery(name, userMsg.content, true)
+    ElMessage.success('已收藏')
+  } catch {
+    // 用户取消
+  }
+}
+
+async function handleShare(msg: any) {
+  const msgIdx = messages.value.indexOf(msg)
+  const userMsg = msgIdx > 0 ? messages.value[msgIdx - 1] : null
+  if (!userMsg || userMsg.role !== 'user') return
+
+  try {
+    const result = await createShare(
+      userMsg.content,
+      msg.content,
+      msg.steps || [],
+      msg.chart_data || null,
+    )
+    const shareUrl = `${window.location.origin}${result.url}`
+    await navigator.clipboard.writeText(shareUrl)
+    ElMessage.success('分享链接已复制到剪贴板')
+  } catch (e: any) {
+    ElMessage.error('分享失败: ' + (e.message || '未知错误'))
+  }
+}
+
 function getObservationTable(msg: any): boolean {
   return parseObservationTable(msg.steps || []) !== null
 }
@@ -192,8 +234,10 @@ function getObservationTableData(msg: any): Record<string, string>[] {
                 <div v-if="msg.chart_data" style="margin-top: 12px;">
                   <v-chart :option="buildEchartsOption(msg.chart_data)" style="height: 350px;" autoresize />
                 </div>
-                <div v-if="msg.steps && msg.steps.length && !msg.loading" style="margin-top: 8px;">
+                <div v-if="msg.steps && msg.steps.length && !msg.loading" style="margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap;">
                   <button class="export-btn" @click="handleExport(msg)">📥 导出 CSV</button>
+                  <button class="export-btn" @click="handleSave(msg)">⭐ 收藏</button>
+                  <button class="export-btn" @click="handleShare(msg)">🔗 分享</button>
                 </div>
                 <div v-if="msg.suggestions && msg.suggestions.length" style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
                   <el-button v-for="s in msg.suggestions" :key="s" size="small" round

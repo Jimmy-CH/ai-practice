@@ -10,6 +10,12 @@ const router = createRouter({
       meta: { public: true },
     },
     {
+      path: '/shared/:token',
+      name: 'Shared',
+      component: () => import('../components/SharedView.vue'),
+      meta: { public: true },
+    },
+    {
       path: '/',
       component: () => import('../layouts/MainLayout.vue'),
       children: [
