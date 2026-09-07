@@ -32,3 +32,32 @@ class TableSchema(BaseModel):
 
 class SchemasResponse(BaseModel):
     tables: List[TableSchema]
+
+
+class DashboardSummary(BaseModel):
+    total_revenue: float
+    total_orders: int
+    total_products: int
+    monthly_revenue: float
+
+
+class DashboardTrend(BaseModel):
+    dates: List[str]
+    values: List[float]
+
+
+class DashboardCategory(BaseModel):
+    labels: List[str]
+    values: List[float]
+
+
+class DashboardTopProducts(BaseModel):
+    names: List[str]
+    values: List[float]
+
+
+class DashboardResponse(BaseModel):
+    summary: DashboardSummary
+    daily_trend: DashboardTrend
+    category_distribution: DashboardCategory
+    top_products: DashboardTopProducts

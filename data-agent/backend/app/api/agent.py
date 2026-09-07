@@ -1,12 +1,16 @@
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
+from sqlalchemy import text as sql_text
 from app.schemas.agent import (
     AgentQueryRequest, AgentQueryResponse, AgentStepResponse,
-    SchemasResponse, TableSchema, ChartData
+    SchemasResponse, TableSchema, ChartData,
+    DashboardResponse, DashboardSummary, DashboardTrend,
+    DashboardCategory, DashboardTopProducts,
 )
 from app.agent.langchain_agent import run_agent, stream_agent
 from app.auth.dependencies import require_role
 from app.users.models import User
+from app.database import sync_engine
 
 router = APIRouter(prefix="/agent", tags=["Agent"])
 
@@ -78,3 +82,73 @@ async def get_schemas(
 ):
     """获取数据库表结构信息。"""
     return SchemasResponse(tables=DB_SCHEMA)
+
+
+@router.get("/dashboard", response_model=DashboardResponse)
+async def dashboard(
+    _current_user: User = Depends(require_role("admin", "editor")),
+):
+    """获取仪表盘聚合数据。"""
+    with sync_engine.connect() as conn:
+        # 汇总统计
+        summary_rows = conn.execute(sql_text("""
+            SELECT
+                COALESCE(SUM(oi.quantity * oi.unit_price), 0) as total_revenue,
+                COUNT(DISTINCT o.id) as total_orders,
+                (SELECT COUNT(*) FROM products) as total_products,
+                COALESCE(SUM(CASE WHEN o.order_date >= date('now', '-30 days')
+                    THEN oi.quantity * oi.unit_price ELSE 0 END), 0) as monthly_revenue
+            FROM orders o
+            JOIN order_items oi ON oi.order_id = o.id
+        """)).fetchone()
+
+        # 近 30 天每日趋势
+        trend_rows = conn.execute(sql_text("""
+            SELECT date(o.order_date) as d,
+                   SUM(oi.quantity * oi.unit_price) as revenue
+            FROM orders o
+            JOIN order_items oi ON oi.order_id = o.id
+            WHERE o.order_date >= date('now', '-30 days')
+            GROUP BY date(o.order_date)
+            ORDER BY d
+        """)).fetchall()
+
+        # 品类分布
+        cat_rows = conn.execute(sql_text("""
+            SELECT p.category, SUM(oi.quantity * oi.unit_price) as revenue
+            FROM products p
+            JOIN order_items oi ON oi.product_id = p.id
+            GROUP BY p.category
+            ORDER BY revenue DESC
+        """)).fetchall()
+
+        # TOP 10 热销商品
+        top_rows = conn.execute(sql_text("""
+            SELECT p.name, SUM(oi.quantity) as qty
+            FROM products p
+            JOIN order_items oi ON oi.product_id = p.id
+            GROUP BY p.id
+            ORDER BY qty DESC
+            LIMIT 10
+        """)).fetchall()
+
+    return DashboardResponse(
+        summary=DashboardSummary(
+            total_revenue=summary_rows[0] or 0,
+            total_orders=summary_rows[1] or 0,
+            total_products=summary_rows[2] or 0,
+            monthly_revenue=summary_rows[3] or 0,
+        ),
+        daily_trend=DashboardTrend(
+            dates=[str(r[0]) for r in trend_rows],
+            values=[float(r[1]) for r in trend_rows],
+        ),
+        category_distribution=DashboardCategory(
+            labels=[r[0] for r in cat_rows],
+            values=[float(r[1]) for r in cat_rows],
+        ),
+        top_products=DashboardTopProducts(
+            names=[r[0] for r in top_rows],
+            values=[float(r[1]) for r in top_rows],
+        ),
+    )
