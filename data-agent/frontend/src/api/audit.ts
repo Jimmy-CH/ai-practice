@@ -1,4 +1,4 @@
-import api from './auth'
+import { api } from './auth'
 
 export interface AuditLogOut {
   id: number
