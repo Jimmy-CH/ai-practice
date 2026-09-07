@@ -14,6 +14,7 @@ from app.auth.dependencies import require_role
 from app.users.models import User
 from app.database import sync_engine, get_db
 from app.models.datasource import DataSource
+from app.api.audit import log_audit
 
 router = APIRouter(prefix="/agent", tags=["Agent"])
 
@@ -85,6 +86,8 @@ async def query(
     """提交自然语言问题，Agent 执行 ReAct 循环后返回结果。"""
     user_tables = await _get_user_tables(db, current_user.id)
     result = await run_agent(request.question, [h.dict() for h in request.history], user_tables)
+    # 记录审计日志
+    log_audit(current_user.id, current_user.username, "query", request.question)
     return AgentQueryResponse(
         answer=result.answer,
         steps=[AgentStepResponse(type=s.type, content=s.content) for s in result.steps],
