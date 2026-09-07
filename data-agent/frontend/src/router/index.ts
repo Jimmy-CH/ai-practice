@@ -40,6 +40,12 @@ const router = createRouter({
           component: () => import('../components/DataSourceView.vue'),
         },
         {
+          path: 'audit',
+          name: 'Audit',
+          component: () => import('../components/AuditView.vue'),
+          meta: { requireAdmin: true },
+        },
+        {
           path: 'users',
           name: 'Users',
           component: () => import('../components/UserManage.vue'),
