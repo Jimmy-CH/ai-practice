@@ -40,6 +40,11 @@ const router = createRouter({
           component: () => import('../components/DataSourceView.vue'),
         },
         {
+          path: 'reports',
+          name: 'Reports',
+          component: () => import('../components/ReportView.vue'),
+        },
+        {
           path: 'audit',
           name: 'Audit',
           component: () => import('../components/AuditView.vue'),
