@@ -54,6 +54,7 @@ onUnmounted(() => {
           style="border-right: none;">
           <el-menu-item index="/"><span>💬 Agent 对话</span></el-menu-item>
           <el-menu-item index="/dashboard"><span>📈 仪表盘</span></el-menu-item>
+          <el-menu-item index="/datasource"><span>📁 数据源</span></el-menu-item>
           <el-menu-item index="/users" v-if="isAdmin"><span>👥 用户管理</span></el-menu-item>
           <el-menu-item index="/profile"><span>👤 个人中心</span></el-menu-item>
         </el-menu>
@@ -68,6 +69,7 @@ onUnmounted(() => {
           active-text-color="#409eff">
           <el-menu-item index="/"><span>💬 Agent 对话</span></el-menu-item>
           <el-menu-item index="/dashboard"><span>📈 仪表盘</span></el-menu-item>
+          <el-menu-item index="/datasource"><span>📁 数据源</span></el-menu-item>
           <el-menu-item index="/users" v-if="isAdmin"><span>👥 用户管理</span></el-menu-item>
           <el-menu-item index="/profile"><span>👤 个人中心</span></el-menu-item>
         </el-menu>
