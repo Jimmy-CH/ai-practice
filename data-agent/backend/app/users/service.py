@@ -118,3 +118,22 @@ async def create_oauth_user(
     await db.refresh(user)
     logger.info(f"OAuth 新用户: {provider}/{provider_login}")
     return user
+
+
+async def update_user_active(db: AsyncSession, user_id: int, is_active: bool) -> User | None:
+    user = await get_user_by_id(db, user_id)
+    if user is None:
+        return None
+    user.is_active = is_active
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+async def delete_user(db: AsyncSession, user_id: int) -> bool:
+    user = await get_user_by_id(db, user_id)
+    if user is None:
+        return False
+    await db.delete(user)
+    await db.commit()
+    return True
