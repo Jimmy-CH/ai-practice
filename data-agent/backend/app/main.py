@@ -18,6 +18,7 @@ import app.models.datasource  # noqa: F401 — 确保数据源模型注册
 import app.models.query  # noqa: F401 — 确保收藏查询模型注册
 import app.models.share  # noqa: F401 — 确保分享查询模型注册
 import app.models.audit  # noqa: F401 — 确保审计日志模型注册
+import app.models.report  # noqa: F401 — 确保定时报告模型注册
 
 setup_logging()
 logger = logging.getLogger(__name__)
