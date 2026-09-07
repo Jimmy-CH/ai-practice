@@ -53,10 +53,13 @@ async function handleLogin() {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
+  background: linear-gradient(135deg, var(--login-gradient-start) 0%, var(--login-gradient-end) 100%);
 }
 .login-card {
   width: 400px;
   padding: 20px;
+}
+.login-card h2 {
+  color: var(--text-primary);
 }
 </style>
