@@ -1,4 +1,5 @@
-"""Agent 工具定义：SQL 只读查询。"""
+"""Agent 工具定义：SQL 只读查询 + 图表生成。"""
+import json
 import logging
 from sqlalchemy import text
 from langchain_core.tools import tool
@@ -59,3 +60,29 @@ def sql_query(query: str) -> str:
     except Exception as e:
         logger.error(f"SQL 执行错误: {e}, 查询: {query[:100]}")
         return f"SQL 执行错误: {str(e)}"
+
+
+@tool
+def generate_chart(chart_type: str, title: str, labels: str, values: str) -> str:
+    """生成数据可视化图表配置。
+    chart_type: 图表类型，必须是 "bar"、"line"、"pie" 之一
+    title: 图表标题
+    labels: JSON 数组字符串，如 '["电子产品","服装","食品"]'
+    values: JSON 数组字符串，如 '[15000,8000,5000]'
+    返回图表配置的 JSON 字符串。
+    """
+    if chart_type not in ("bar", "line", "pie"):
+        return "错误：chart_type 必须是 bar、line 或 pie"
+    try:
+        labels_list = json.loads(labels)
+        values_list = json.loads(values)
+    except json.JSONDecodeError:
+        return "错误：labels 和 values 必须是合法的 JSON 数组"
+
+    chart_config = {
+        "type": chart_type,
+        "title": title,
+        "x_axis": labels_list,
+        "series": [{"name": title, "data": values_list}],
+    }
+    return json.dumps(chart_config, ensure_ascii=False)

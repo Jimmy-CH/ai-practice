@@ -13,6 +13,7 @@ from app.database import engine, Base
 from app.api.router import api_router
 from app.logging_config import setup_logging
 import app.users.models  # noqa: F401 — 确保模型注册到 Base.metadata
+import app.models.conversation  # noqa: F401 — 确保对话模型注册
 
 setup_logging()
 logger = logging.getLogger(__name__)

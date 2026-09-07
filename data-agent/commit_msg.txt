@@ -1,1 +1,1 @@
-feat: phase 1 - frontend login, user management, and backend APIs
+feat: phase 2 - conversation history, SSE streaming, charts, CSV export
