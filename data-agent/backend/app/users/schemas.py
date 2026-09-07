@@ -40,3 +40,10 @@ class UpdateProfileRequest(BaseModel):
 class ChangePasswordRequest(BaseModel):
     old_password: str
     new_password: str
+
+
+class ProfileStatsOut(BaseModel):
+    total_queries: int = 0
+    saved_queries: int = 0
+    shared_links: int = 0
+    data_sources: int = 0

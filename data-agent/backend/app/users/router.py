@@ -5,11 +5,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.auth.dependencies import get_current_user, require_role
 from app.users.models import User, Role
-from app.users.schemas import UserOut, UpdateRoleRequest, UpdateActiveRequest, UpdateProfileRequest, ChangePasswordRequest
+from app.users.schemas import (
+    UserOut, UpdateRoleRequest, UpdateActiveRequest, UpdateProfileRequest,
+    ChangePasswordRequest, ProfileStatsOut,
+)
 from app.users.service import (
     get_all_users, update_user_role, update_user_active, delete_user, get_user_by_id,
     update_profile, change_password,
 )
+from app.models.query import SavedQuery
+from app.models.share import SharedQuery
+from app.models.datasource import DataSource
+from app.models.audit import AuditLog
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -18,6 +25,46 @@ router = APIRouter(prefix="/users", tags=["Users"])
 async def get_me(current_user: User = Depends(get_current_user)):
     """获取当前登录用户信息。"""
     return _user_to_out(current_user)
+
+
+@router.get("/me/stats", response_model=ProfileStatsOut)
+async def get_my_stats(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """获取当前用户的个人数据统计。"""
+    # 查询次数（从审计日志）
+    q_result = await db.execute(
+        select(func.count()).select_from(AuditLog).where(
+            AuditLog.user_id == current_user.id, AuditLog.action == "query"
+        )
+    )
+    total_queries = q_result.scalar() or 0
+
+    # 收藏查询数
+    sq_result = await db.execute(
+        select(func.count()).select_from(SavedQuery).where(SavedQuery.user_id == current_user.id)
+    )
+    saved_queries = sq_result.scalar() or 0
+
+    # 分享链接数
+    sh_result = await db.execute(
+        select(func.count()).select_from(SharedQuery).where(SharedQuery.user_id == current_user.id)
+    )
+    shared_links = sh_result.scalar() or 0
+
+    # 数据源数
+    ds_result = await db.execute(
+        select(func.count()).select_from(DataSource).where(DataSource.uploaded_by == current_user.id)
+    )
+    data_sources = ds_result.scalar() or 0
+
+    return ProfileStatsOut(
+        total_queries=total_queries,
+        saved_queries=saved_queries,
+        shared_links=shared_links,
+        data_sources=data_sources,
+    )
 
 
 @router.put("/me", response_model=UserOut)
