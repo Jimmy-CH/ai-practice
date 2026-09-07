@@ -84,7 +84,7 @@ async function handleChangePassword() {
   }
 }
 
-function handleSavedClick(sq: SavedQueryOut) {
+function handleSavedClick(_sq: SavedQueryOut) {
   router.push('/')
   // 可以在这里触发自动发送问题
 }

@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { queryAgent, type AgentQueryResponse, type AgentStep, type HistoryMessage } from '../api/agent'
+import { queryAgent, type AgentStep, type HistoryMessage } from '../api/agent'
 import { saveMessage } from '../api/conversation'
 import {
   getConversations, getMessages, createConversation, deleteConversation,
@@ -32,7 +32,7 @@ export function useAgentChat() {
     try {
       const msgs = await getMessages(convId)
       messages.value = msgs.map(m => ({
-        role: m.role as 'user' | 'agent',
+        role: m.role,
         content: m.content,
         steps: m.steps,
         loading: false,
@@ -73,6 +73,7 @@ export function useAgentChat() {
       historyMsgs.push({ role: m.role, content: m.content })
     }
 
+    const conversationId = currentConvId.value
     messages.value.push({ role: 'user', content: question })
     const agentMsg: ChatMessage = { role: 'agent', content: '', loading: true }
     messages.value.push(agentMsg)
@@ -80,25 +81,35 @@ export function useAgentChat() {
 
     try {
       const result = await queryAgent(question, historyMsgs)
-      const idx = messages.value.length - 1
-      messages.value[idx] = {
-        role: 'agent',
-        content: result.answer,
-        steps: result.steps,
-        loading: false,
-        chart_data: (result as any).chart_data,
-        suggestions: result.suggestions || [],
+      const idx = messages.value.indexOf(agentMsg)
+      if (idx >= 0) {
+        messages.value[idx] = {
+          role: 'agent',
+          content: result.answer,
+          steps: result.steps,
+          loading: false,
+          chart_data: result.chart_data,
+          suggestions: result.suggestions || [],
+        }
       }
 
-      await saveMessage(currentConvId.value, 'user', question)
-      await saveMessage(currentConvId.value, 'agent', result.answer, result.steps)
+      try {
+        if (conversationId !== null) {
+          await saveMessage(conversationId, 'user', question)
+          await saveMessage(conversationId, 'agent', result.answer, result.steps)
+        }
+      } catch {
+        // 持久化失败不应覆盖已经成功返回的回答
+      }
     } catch (error: any) {
-      const idx = messages.value.length - 1
-      messages.value[idx] = {
-        role: 'agent',
-        content: `请求失败: ${error.message}`,
-        steps: [],
-        loading: false,
+      const idx = messages.value.indexOf(agentMsg)
+      if (idx >= 0) {
+        messages.value[idx] = {
+          role: 'agent',
+          content: `请求失败: ${error.message}`,
+          steps: [],
+          loading: false,
+        }
       }
     } finally {
       isLoading.value = false

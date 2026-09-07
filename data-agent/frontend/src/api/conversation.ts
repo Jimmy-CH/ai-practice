@@ -1,4 +1,5 @@
 import { api } from './auth'
+import type { AgentStep } from './agent'
 
 export interface ConversationOut {
   id: number
@@ -9,9 +10,9 @@ export interface ConversationOut {
 
 export interface MessageOut {
   id: number
-  role: string
+  role: 'user' | 'agent'
   content: string
-  steps: { type: string; content: string }[]
+  steps: AgentStep[]
   created_at: string
 }
 

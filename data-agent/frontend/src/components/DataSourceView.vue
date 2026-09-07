@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getDataSources, uploadDataSource, updateDataSource, deleteDataSource,
-  type DataSourceOut, type ColumnInfo,
+  type DataSourceOut,
 } from '../api/datasource'
 
 const sources = ref<DataSourceOut[]>([])

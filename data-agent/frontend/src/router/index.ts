@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { api } from '../api/auth'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -61,10 +62,18 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const token = localStorage.getItem('access_token')
   if (!to.meta.public && !token) {
     return { name: 'Login' }
+  }
+  if (to.meta.requireAdmin) {
+    try {
+      const { data } = await api.get<{ role_name: string }>('/users/me')
+      if (data.role_name !== 'admin') return { name: 'Chat' }
+    } catch {
+      return { name: 'Login' }
+    }
   }
 })
 
