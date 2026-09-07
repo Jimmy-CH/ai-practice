@@ -1,6 +1,4 @@
-import axios from 'axios'
-
-const api = axios.create({ baseURL: '/api' })
+import { api } from './auth'
 
 export interface AgentStep {
   type: 'thought' | 'action' | 'observation'
