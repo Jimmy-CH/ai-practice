@@ -106,6 +106,26 @@ function handleExport(msg: any) {
   const tableData = parseObservationTable(msg.steps || [])
   if (tableData) exportToCSV(tableData, 'query_result')
 }
+
+function getObservationTable(msg: any): boolean {
+  return parseObservationTable(msg.steps || []) !== null
+}
+
+function getObservationHeaders(msg: any): string[] {
+  const table = parseObservationTable(msg.steps || [])
+  return table ? table[0] : []
+}
+
+function getObservationTableData(msg: any): Record<string, string>[] {
+  const table = parseObservationTable(msg.steps || [])
+  if (!table || table.length < 2) return []
+  const headers = table[0]
+  return table.slice(1).map(row => {
+    const obj: Record<string, string> = {}
+    headers.forEach((h, i) => { obj[h] = row[i] || '' })
+    return obj
+  })
+}
 </script>
 
 <template>
@@ -161,12 +181,25 @@ function handleExport(msg: any) {
                     </div>
                   </details>
                 </div>
+                <div v-if="getObservationTable(msg)" style="margin: 8px 0;">
+                  <el-table :data="getObservationTableData(msg)" border size="small"
+                    style="width: 100%; margin-bottom: 8px;">
+                    <el-table-column v-for="col in getObservationHeaders(msg)" :key="col"
+                      :prop="col" :label="col" sortable min-width="120" />
+                  </el-table>
+                </div>
                 <div class="answer">{{ msg.content }}</div>
                 <div v-if="msg.chart_data" style="margin-top: 12px;">
                   <v-chart :option="buildEchartsOption(msg.chart_data)" style="height: 350px;" autoresize />
                 </div>
                 <div v-if="msg.steps && msg.steps.length && !msg.loading" style="margin-top: 8px;">
                   <button class="export-btn" @click="handleExport(msg)">📥 导出 CSV</button>
+                </div>
+                <div v-if="msg.suggestions && msg.suggestions.length" style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
+                  <el-button v-for="s in msg.suggestions" :key="s" size="small" round
+                    @click="handleQuick(s)" :disabled="isLoading">
+                    {{ s }}
+                  </el-button>
                 </div>
               </template>
             </template>

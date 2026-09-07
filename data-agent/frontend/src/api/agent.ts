@@ -5,14 +5,20 @@ export interface AgentStep {
   content: string
 }
 
+export interface HistoryMessage {
+  role: 'user' | 'agent'
+  content: string
+}
+
 export interface AgentQueryResponse {
   answer: string
   steps: AgentStep[]
   success: boolean
+  suggestions?: string[]
 }
 
-export async function queryAgent(question: string): Promise<AgentQueryResponse> {
-  const { data } = await api.post<AgentQueryResponse>('/agent/query', { question })
+export async function queryAgent(question: string, history: HistoryMessage[] = []): Promise<AgentQueryResponse> {
+  const { data } = await api.post<AgentQueryResponse>('/agent/query', { question, history })
   return data
 }
 

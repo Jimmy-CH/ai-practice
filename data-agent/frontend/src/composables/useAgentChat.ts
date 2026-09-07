@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { queryAgent, type AgentQueryResponse, type AgentStep } from '../api/agent'
+import { queryAgent, type AgentQueryResponse, type AgentStep, type HistoryMessage } from '../api/agent'
 import { saveMessage } from '../api/conversation'
 import {
   getConversations, getMessages, createConversation, deleteConversation,
@@ -12,6 +12,7 @@ export interface ChatMessage {
   steps?: AgentStep[]
   loading?: boolean
   chart_data?: any
+  suggestions?: string[]
 }
 
 const conversations = ref<ConversationOut[]>([])
@@ -58,11 +59,18 @@ export function useAgentChat() {
   }
 
   async function sendQuestion(question: string) {
-    // 如果没有当前会话，自动创建
     if (!currentConvId.value) {
       const conv = await createConversation(question.slice(0, 20))
       conversations.value.unshift(conv)
       currentConvId.value = conv.id
+    }
+
+    // 提取最近 5 轮对话历史
+    const historyMsgs: HistoryMessage[] = []
+    const nonLoadingMsgs = messages.value.filter(m => !m.loading)
+    const recentPairs = nonLoadingMsgs.slice(-10)
+    for (const m of recentPairs) {
+      historyMsgs.push({ role: m.role, content: m.content })
     }
 
     messages.value.push({ role: 'user', content: question })
@@ -71,7 +79,7 @@ export function useAgentChat() {
     isLoading.value = true
 
     try {
-      const result = await queryAgent(question)
+      const result = await queryAgent(question, historyMsgs)
       const idx = messages.value.length - 1
       messages.value[idx] = {
         role: 'agent',
@@ -79,9 +87,9 @@ export function useAgentChat() {
         steps: result.steps,
         loading: false,
         chart_data: (result as any).chart_data,
+        suggestions: result.suggestions || [],
       }
 
-      // 保存消息到后端
       await saveMessage(currentConvId.value, 'user', question)
       await saveMessage(currentConvId.value, 'agent', result.answer, result.steps)
     } catch (error: any) {
