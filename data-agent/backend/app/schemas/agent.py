@@ -2,8 +2,14 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 
+class HistoryMessage(BaseModel):
+    role: str   # "user" | "agent"
+    content: str
+
+
 class AgentQueryRequest(BaseModel):
     question: str
+    history: List[HistoryMessage] = []
 
 
 class AgentStepResponse(BaseModel):
@@ -23,6 +29,7 @@ class AgentQueryResponse(BaseModel):
     steps: List[AgentStepResponse]
     success: bool
     chart_data: Optional[ChartData] = None
+    suggestions: List[str] = []
 
 
 class TableSchema(BaseModel):
