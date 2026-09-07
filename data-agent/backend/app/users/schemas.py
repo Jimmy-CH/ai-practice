@@ -30,3 +30,13 @@ class UpdateRoleRequest(BaseModel):
 
 class UpdateActiveRequest(BaseModel):
     is_active: bool
+
+
+class UpdateProfileRequest(BaseModel):
+    email: str | None = None
+    phone: str | None = None
+
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str

@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.users.models import User, Role, OAuthAccount
-from app.auth.service import hash_password
+from app.auth.service import hash_password, verify_password
 
 logger = logging.getLogger(__name__)
 
@@ -135,5 +135,29 @@ async def delete_user(db: AsyncSession, user_id: int) -> bool:
     if user is None:
         return False
     await db.delete(user)
+    await db.commit()
+    return True
+
+
+async def update_profile(db: AsyncSession, user_id: int, email: str | None, phone: str | None) -> User | None:
+    user = await get_user_by_id(db, user_id)
+    if user is None:
+        return None
+    if email is not None:
+        user.email = email
+    if phone is not None:
+        user.phone = phone
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+async def change_password(db: AsyncSession, user_id: int, old_password: str, new_password: str) -> bool:
+    user = await get_user_by_id(db, user_id)
+    if user is None or not user.hashed_password:
+        return False
+    if not verify_password(old_password, user.hashed_password):
+        return False
+    user.hashed_password = hash_password(new_password)
     await db.commit()
     return True

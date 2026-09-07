@@ -10,6 +10,12 @@ const router = createRouter({
       meta: { public: true },
     },
     {
+      path: '/shared/:token',
+      name: 'Shared',
+      component: () => import('../components/SharedView.vue'),
+      meta: { public: true },
+    },
+    {
       path: '/',
       component: () => import('../layouts/MainLayout.vue'),
       children: [
@@ -17,6 +23,32 @@ const router = createRouter({
           path: '',
           name: 'Chat',
           component: () => import('../components/AgentChat.vue'),
+        },
+        {
+          path: 'dashboard',
+          name: 'Dashboard',
+          component: () => import('../components/Dashboard.vue'),
+        },
+        {
+          path: 'profile',
+          name: 'Profile',
+          component: () => import('../components/ProfileView.vue'),
+        },
+        {
+          path: 'datasource',
+          name: 'DataSource',
+          component: () => import('../components/DataSourceView.vue'),
+        },
+        {
+          path: 'reports',
+          name: 'Reports',
+          component: () => import('../components/ReportView.vue'),
+        },
+        {
+          path: 'audit',
+          name: 'Audit',
+          component: () => import('../components/AuditView.vue'),
+          meta: { requireAdmin: true },
         },
         {
           path: 'users',

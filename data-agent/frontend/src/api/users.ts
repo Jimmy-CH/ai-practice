@@ -40,3 +40,12 @@ export async function getRoles(): Promise<RoleOut[]> {
   const { data } = await api.get<RoleOut[]>('/auth/roles')
   return data
 }
+
+export async function updateProfile(email: string | null, phone: string | null): Promise<UserOut> {
+  const { data } = await api.put<UserOut>('/users/me', { email, phone })
+  return data
+}
+
+export async function changePassword(oldPassword: string, newPassword: string): Promise<void> {
+  await api.put('/users/me/password', { old_password: oldPassword, new_password: newPassword })
+}

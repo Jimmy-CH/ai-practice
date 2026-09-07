@@ -5,9 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.auth.dependencies import get_current_user, require_role
 from app.users.models import User, Role
-from app.users.schemas import UserOut, UpdateRoleRequest, UpdateActiveRequest
+from app.users.schemas import UserOut, UpdateRoleRequest, UpdateActiveRequest, UpdateProfileRequest, ChangePasswordRequest
 from app.users.service import (
     get_all_users, update_user_role, update_user_active, delete_user, get_user_by_id,
+    update_profile, change_password,
 )
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -17,6 +18,34 @@ router = APIRouter(prefix="/users", tags=["Users"])
 async def get_me(current_user: User = Depends(get_current_user)):
     """获取当前登录用户信息。"""
     return _user_to_out(current_user)
+
+
+@router.put("/me", response_model=UserOut)
+async def update_me(
+    req: UpdateProfileRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """更新当前用户个人信息。"""
+    user = await update_profile(db, current_user.id, req.email, req.phone)
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "用户不存在")
+    return _user_to_out(user)
+
+
+@router.put("/me/password")
+async def change_my_password(
+    req: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """修改当前用户密码。"""
+    if len(req.new_password) < 6:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "新密码至少 6 位")
+    ok = await change_password(db, current_user.id, req.old_password, req.new_password)
+    if not ok:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "旧密码不正确")
+    return {"message": "密码已修改"}
 
 
 @router.get("/", response_model=list[UserOut])

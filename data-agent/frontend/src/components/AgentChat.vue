@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -7,6 +7,9 @@ import { BarChart, LineChart, PieChart } from 'echarts/charts'
 import { TitleComponent, TooltipComponent, LegendComponent, GridComponent } from 'echarts/components'
 import { useAgentChat } from '../composables/useAgentChat'
 import { exportToCSV, parseObservationTable } from '../utils/export'
+import { saveQuery } from '../api/query'
+import { createShare } from '../api/share'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 use([CanvasRenderer, BarChart, LineChart, PieChart, TitleComponent, TooltipComponent, LegendComponent, GridComponent])
 
@@ -17,6 +20,16 @@ const {
 } = useAgentChat()
 
 const inputText = ref('')
+const isMobile = ref(window.innerWidth < 768)
+const convDrawerVisible = ref(false)
+
+function onResize() {
+  isMobile.value = window.innerWidth < 768
+}
+
+function onConvSelect() {
+  convDrawerVisible.value = false
+}
 
 const quickQuestions = [
   '查询上月销量最高的商品',
@@ -25,7 +38,14 @@ const quickQuestions = [
   '哪个客户下单最多',
 ]
 
-onMounted(() => { loadConversations() })
+onMounted(() => {
+  loadConversations()
+  window.addEventListener('resize', onResize)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', onResize)
+})
 
 function handleSend() {
   const q = inputText.value.trim()
@@ -58,9 +78,12 @@ function stepLabel(type: string): string {
 }
 
 function buildEchartsOption(chartData: any) {
+  const isDark = document.documentElement.classList.contains('dark')
+  const textColor = isDark ? '#f1f5f9' : '#111827'
   if (chartData.type === 'pie') {
     return {
-      title: { text: chartData.title },
+      backgroundColor: 'transparent',
+      title: { text: chartData.title, textStyle: { color: textColor } },
       tooltip: { trigger: 'item' },
       series: [{
         type: 'pie', radius: '60%',
@@ -71,10 +94,11 @@ function buildEchartsOption(chartData: any) {
     }
   }
   return {
-    title: { text: chartData.title },
+    backgroundColor: 'transparent',
+    title: { text: chartData.title, textStyle: { color: textColor } },
     tooltip: {},
-    xAxis: { type: 'category', data: chartData.x_axis },
-    yAxis: { type: 'value' },
+    xAxis: { type: 'category', data: chartData.x_axis, axisLabel: { color: textColor }, axisLine: { lineStyle: { color: textColor } } },
+    yAxis: { type: 'value', axisLabel: { color: textColor }, axisLine: { lineStyle: { color: textColor } } },
     series: chartData.series.map((s: any) => ({
       name: s.name, type: chartData.type, data: s.data,
     })),
@@ -85,12 +109,71 @@ function handleExport(msg: any) {
   const tableData = parseObservationTable(msg.steps || [])
   if (tableData) exportToCSV(tableData, 'query_result')
 }
+
+async function handleSave(msg: any) {
+  // 找到对应的用户问题
+  const msgIdx = messages.value.indexOf(msg)
+  const userMsg = msgIdx > 0 ? messages.value[msgIdx - 1] : null
+  if (!userMsg || userMsg.role !== 'user') return
+
+  try {
+    const { value: name } = await ElMessageBox.prompt('给这个查询起个名字', '收藏查询', {
+      confirmButtonText: '保存',
+      cancelButtonText: '取消',
+      inputPlaceholder: '例如：各品类销售额汇总',
+    })
+    await saveQuery(name, userMsg.content, true)
+    ElMessage.success('已收藏')
+  } catch {
+    // 用户取消
+  }
+}
+
+async function handleShare(msg: any) {
+  const msgIdx = messages.value.indexOf(msg)
+  const userMsg = msgIdx > 0 ? messages.value[msgIdx - 1] : null
+  if (!userMsg || userMsg.role !== 'user') return
+
+  try {
+    const result = await createShare(
+      userMsg.content,
+      msg.content,
+      msg.steps || [],
+      msg.chart_data || null,
+    )
+    const shareUrl = `${window.location.origin}${result.url}`
+    await navigator.clipboard.writeText(shareUrl)
+    ElMessage.success('分享链接已复制到剪贴板')
+  } catch (e: any) {
+    ElMessage.error('分享失败: ' + (e.message || '未知错误'))
+  }
+}
+
+function getObservationTable(msg: any): boolean {
+  return parseObservationTable(msg.steps || []) !== null
+}
+
+function getObservationHeaders(msg: any): string[] {
+  const table = parseObservationTable(msg.steps || [])
+  return table ? table[0] : []
+}
+
+function getObservationTableData(msg: any): Record<string, string>[] {
+  const table = parseObservationTable(msg.steps || [])
+  if (!table || table.length < 2) return []
+  const headers = table[0]
+  return table.slice(1).map(row => {
+    const obj: Record<string, string> = {}
+    headers.forEach((h, i) => { obj[h] = row[i] || '' })
+    return obj
+  })
+}
 </script>
 
 <template>
   <div style="display: flex; height: calc(100vh - 56px);">
-    <!-- 会话列表侧栏 -->
-    <div class="conv-sidebar">
+    <!-- 桌面端会话侧栏 -->
+    <div v-if="!isMobile" class="conv-sidebar">
       <button class="new-conv-btn" @click="startNewConversation">+ 新对话</button>
       <div
         v-for="conv in conversations" :key="conv.id"
@@ -102,8 +185,26 @@ function handleExport(msg: any) {
       </div>
     </div>
 
+    <!-- 移动端会话抽屉 -->
+    <el-drawer v-if="isMobile" v-model="convDrawerVisible" direction="ltr" :size="260" :show-close="false"
+      :style="{ background: 'var(--bg-sidebar)' }">
+      <button class="new-conv-btn" @click="startNewConversation(); convDrawerVisible = false">+ 新对话</button>
+      <div
+        v-for="conv in conversations" :key="conv.id"
+        :class="['conv-item', { active: conv.id === currentConvId }]"
+        @click="selectConversation(conv.id); convDrawerVisible = false"
+      >
+        <span class="conv-title">{{ conv.title }}</span>
+        <button class="conv-delete" @click.stop="removeConversation(conv.id)">×</button>
+      </div>
+    </el-drawer>
+
     <!-- 主聊天区域 -->
-    <div class="agent-chat">
+    <div class="agent-chat" :style="isMobile ? { maxWidth: '100%' } : {}">
+      <!-- 移动端显示会话按钮 -->
+      <div v-if="isMobile" style="padding: 8px 12px;">
+        <el-button size="small" @click="convDrawerVisible = true">📋 会话列表</el-button>
+      </div>
       <div class="messages">
         <div v-for="(msg, i) in messages" :key="i" :class="['message', msg.role]">
           <div class="bubble">
@@ -122,12 +223,27 @@ function handleExport(msg: any) {
                     </div>
                   </details>
                 </div>
+                <div v-if="getObservationTable(msg)" style="margin: 8px 0;">
+                  <el-table :data="getObservationTableData(msg)" border size="small"
+                    style="width: 100%; margin-bottom: 8px;">
+                    <el-table-column v-for="col in getObservationHeaders(msg)" :key="col"
+                      :prop="col" :label="col" sortable min-width="120" />
+                  </el-table>
+                </div>
                 <div class="answer">{{ msg.content }}</div>
                 <div v-if="msg.chart_data" style="margin-top: 12px;">
                   <v-chart :option="buildEchartsOption(msg.chart_data)" style="height: 350px;" autoresize />
                 </div>
-                <div v-if="msg.steps && msg.steps.length && !msg.loading" style="margin-top: 8px;">
+                <div v-if="msg.steps && msg.steps.length && !msg.loading" style="margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap;">
                   <button class="export-btn" @click="handleExport(msg)">📥 导出 CSV</button>
+                  <button class="export-btn" @click="handleSave(msg)">⭐ 收藏</button>
+                  <button class="export-btn" @click="handleShare(msg)">🔗 分享</button>
+                </div>
+                <div v-if="msg.suggestions && msg.suggestions.length" style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
+                  <el-button v-for="s in msg.suggestions" :key="s" size="small" round
+                    @click="handleQuick(s)" :disabled="isLoading">
+                    {{ s }}
+                  </el-button>
                 </div>
               </template>
             </template>
@@ -135,7 +251,7 @@ function handleExport(msg: any) {
         </div>
       </div>
 
-      <div class="quick-questions">
+      <div class="quick-questions" :style="isMobile ? { flexWrap: 'nowrap', overflowX: 'auto' } : {}">
         <button v-for="q in quickQuestions" :key="q" @click="handleQuick(q)" :disabled="isLoading">
           {{ q }}
         </button>
@@ -157,22 +273,23 @@ function handleExport(msg: any) {
 <style scoped>
 .conv-sidebar {
   width: 220px;
-  border-right: 1px solid #e5e7eb;
+  border-right: 1px solid var(--border-color);
   padding: 12px;
   overflow-y: auto;
-  background: #fafafa;
+  background: var(--bg-sidebar);
 }
 .new-conv-btn {
   width: 100%;
   padding: 8px;
   margin-bottom: 12px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
-  background: white;
+  background: var(--bg-card);
+  color: var(--text-primary);
   cursor: pointer;
   font-size: 13px;
 }
-.new-conv-btn:hover { background: #f3f4f6; }
+.new-conv-btn:hover { background: var(--bg-hover); }
 .conv-item {
   display: flex;
   justify-content: space-between;
@@ -181,12 +298,13 @@ function handleExport(msg: any) {
   border-radius: 6px;
   cursor: pointer;
   margin-bottom: 4px;
+  color: var(--text-primary);
 }
-.conv-item:hover { background: #e5e7eb; }
-.conv-item.active { background: #dbeafe; }
+.conv-item:hover { background: var(--bg-hover); }
+.conv-item.active { background: var(--bg-hover); }
 .conv-title { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 .conv-delete {
-  background: none; border: none; cursor: pointer; color: #9ca3af;
+  background: none; border: none; cursor: pointer; color: var(--text-muted);
   font-size: 16px; padding: 0 4px;
 }
 .conv-delete:hover { color: #ef4444; }
@@ -200,47 +318,52 @@ function handleExport(msg: any) {
 .messages { flex: 1; overflow-y: auto; padding: 20px; }
 .message { margin-bottom: 16px; }
 .message.user .bubble {
-  background: #3b82f6; color: white; border-radius: 12px 12px 0 12px;
+  background: var(--user-bubble-bg); color: white; border-radius: 12px 12px 0 12px;
   padding: 12px 16px; max-width: 70%; margin-left: auto;
 }
 .message.agent .bubble {
-  background: #f3f4f6; border-radius: 12px 12px 12px 0;
+  background: var(--agent-bubble-bg); border-radius: 12px 12px 12px 0;
   padding: 12px 16px; max-width: 85%;
+  color: var(--text-primary);
 }
-.loading { color: #6b7280; font-style: italic; }
+.loading { color: var(--text-secondary); font-style: italic; }
 .steps-panel {
-  margin-bottom: 12px; border: 1px solid #e5e7eb;
-  border-radius: 8px; padding: 8px; background: #fafafa;
+  margin-bottom: 12px; border: 1px solid var(--steps-panel-border);
+  border-radius: 8px; padding: 8px; background: var(--steps-panel-bg);
 }
-.steps-panel summary { cursor: pointer; font-weight: 600; color: #374151; margin-bottom: 8px; }
+.steps-panel summary { cursor: pointer; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; }
 .step { margin-bottom: 8px; }
 .step-tag {
   display: inline-block; color: white; font-size: 12px;
   padding: 2px 8px; border-radius: 4px; margin-right: 8px;
 }
 .step-content {
-  margin: 4px 0 0 0; padding: 6px 10px; background: white;
+  margin: 4px 0 0 0; padding: 6px 10px; background: var(--bg-card);
   border-radius: 4px; font-size: 13px; white-space: pre-wrap; word-break: break-all;
+  color: var(--text-primary);
 }
-.answer { font-size: 15px; line-height: 1.6; color: #111827; }
+.answer { font-size: 15px; line-height: 1.6; color: var(--text-primary); }
 .quick-questions { padding: 8px 20px; display: flex; gap: 8px; flex-wrap: wrap; }
 .quick-questions button {
-  padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 16px;
-  background: white; cursor: pointer; font-size: 13px;
+  padding: 6px 12px; border: 1px solid var(--border-color); border-radius: 16px;
+  background: var(--bg-card); cursor: pointer; font-size: 13px;
+  color: var(--text-primary);
 }
-.quick-questions button:hover { background: #f3f4f6; }
-.input-area { display: flex; gap: 8px; padding: 16px 20px; border-top: 1px solid #e5e7eb; }
+.quick-questions button:hover { background: var(--bg-hover); }
+.input-area { display: flex; gap: 8px; padding: 16px 20px; border-top: 1px solid var(--border-color); }
 .input-area input {
-  flex: 1; padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;
+  flex: 1; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px;
+  font-size: 14px; background: var(--bg-input); color: var(--text-primary);
 }
 .input-area button {
   padding: 10px 20px; background: #3b82f6; color: white;
   border: none; border-radius: 8px; cursor: pointer; font-size: 14px;
 }
-.input-area button:disabled { background: #9ca3af; cursor: not-allowed; }
+.input-area button:disabled { background: var(--text-muted); cursor: not-allowed; }
 .export-btn {
-  padding: 4px 10px; border: 1px solid #d1d5db; border-radius: 4px;
-  background: white; cursor: pointer; font-size: 12px;
+  padding: 4px 10px; border: 1px solid var(--border-color); border-radius: 4px;
+  background: var(--bg-card); cursor: pointer; font-size: 12px;
+  color: var(--text-primary);
 }
-.export-btn:hover { background: #f3f4f6; }
+.export-btn:hover { background: var(--bg-hover); }
 </style>
