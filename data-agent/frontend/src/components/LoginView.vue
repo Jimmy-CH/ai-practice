@@ -56,7 +56,8 @@ async function handleLogin() {
   background: linear-gradient(135deg, var(--login-gradient-start) 0%, var(--login-gradient-end) 100%);
 }
 .login-card {
-  width: 400px;
+  width: 90%;
+  max-width: 400px;
   padding: 20px;
 }
 .login-card h2 {

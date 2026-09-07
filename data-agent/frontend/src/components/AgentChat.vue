@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -17,6 +17,16 @@ const {
 } = useAgentChat()
 
 const inputText = ref('')
+const isMobile = ref(window.innerWidth < 768)
+const convDrawerVisible = ref(false)
+
+function onResize() {
+  isMobile.value = window.innerWidth < 768
+}
+
+function onConvSelect() {
+  convDrawerVisible.value = false
+}
 
 const quickQuestions = [
   '查询上月销量最高的商品',
@@ -25,7 +35,14 @@ const quickQuestions = [
   '哪个客户下单最多',
 ]
 
-onMounted(() => { loadConversations() })
+onMounted(() => {
+  loadConversations()
+  window.addEventListener('resize', onResize)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', onResize)
+})
 
 function handleSend() {
   const q = inputText.value.trim()
@@ -93,8 +110,8 @@ function handleExport(msg: any) {
 
 <template>
   <div style="display: flex; height: calc(100vh - 56px);">
-    <!-- 会话列表侧栏 -->
-    <div class="conv-sidebar">
+    <!-- 桌面端会话侧栏 -->
+    <div v-if="!isMobile" class="conv-sidebar">
       <button class="new-conv-btn" @click="startNewConversation">+ 新对话</button>
       <div
         v-for="conv in conversations" :key="conv.id"
@@ -106,8 +123,26 @@ function handleExport(msg: any) {
       </div>
     </div>
 
+    <!-- 移动端会话抽屉 -->
+    <el-drawer v-if="isMobile" v-model="convDrawerVisible" direction="ltr" :size="260" :show-close="false"
+      :style="{ background: 'var(--bg-sidebar)' }">
+      <button class="new-conv-btn" @click="startNewConversation(); convDrawerVisible = false">+ 新对话</button>
+      <div
+        v-for="conv in conversations" :key="conv.id"
+        :class="['conv-item', { active: conv.id === currentConvId }]"
+        @click="selectConversation(conv.id); convDrawerVisible = false"
+      >
+        <span class="conv-title">{{ conv.title }}</span>
+        <button class="conv-delete" @click.stop="removeConversation(conv.id)">×</button>
+      </div>
+    </el-drawer>
+
     <!-- 主聊天区域 -->
-    <div class="agent-chat">
+    <div class="agent-chat" :style="isMobile ? { maxWidth: '100%' } : {}">
+      <!-- 移动端显示会话按钮 -->
+      <div v-if="isMobile" style="padding: 8px 12px;">
+        <el-button size="small" @click="convDrawerVisible = true">📋 会话列表</el-button>
+      </div>
       <div class="messages">
         <div v-for="(msg, i) in messages" :key="i" :class="['message', msg.role]">
           <div class="bubble">
@@ -139,7 +174,7 @@ function handleExport(msg: any) {
         </div>
       </div>
 
-      <div class="quick-questions">
+      <div class="quick-questions" :style="isMobile ? { flexWrap: 'nowrap', overflowX: 'auto' } : {}">
         <button v-for="q in quickQuestions" :key="q" @click="handleQuick(q)" :disabled="isLoading">
           {{ q }}
         </button>
