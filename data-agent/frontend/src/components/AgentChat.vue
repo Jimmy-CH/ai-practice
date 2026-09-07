@@ -58,9 +58,12 @@ function stepLabel(type: string): string {
 }
 
 function buildEchartsOption(chartData: any) {
+  const isDark = document.documentElement.classList.contains('dark')
+  const textColor = isDark ? '#f1f5f9' : '#111827'
   if (chartData.type === 'pie') {
     return {
-      title: { text: chartData.title },
+      backgroundColor: 'transparent',
+      title: { text: chartData.title, textStyle: { color: textColor } },
       tooltip: { trigger: 'item' },
       series: [{
         type: 'pie', radius: '60%',
@@ -71,10 +74,11 @@ function buildEchartsOption(chartData: any) {
     }
   }
   return {
-    title: { text: chartData.title },
+    backgroundColor: 'transparent',
+    title: { text: chartData.title, textStyle: { color: textColor } },
     tooltip: {},
-    xAxis: { type: 'category', data: chartData.x_axis },
-    yAxis: { type: 'value' },
+    xAxis: { type: 'category', data: chartData.x_axis, axisLabel: { color: textColor }, axisLine: { lineStyle: { color: textColor } } },
+    yAxis: { type: 'value', axisLabel: { color: textColor }, axisLine: { lineStyle: { color: textColor } } },
     series: chartData.series.map((s: any) => ({
       name: s.name, type: chartData.type, data: s.data,
     })),
@@ -157,22 +161,23 @@ function handleExport(msg: any) {
 <style scoped>
 .conv-sidebar {
   width: 220px;
-  border-right: 1px solid #e5e7eb;
+  border-right: 1px solid var(--border-color);
   padding: 12px;
   overflow-y: auto;
-  background: #fafafa;
+  background: var(--bg-sidebar);
 }
 .new-conv-btn {
   width: 100%;
   padding: 8px;
   margin-bottom: 12px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
-  background: white;
+  background: var(--bg-card);
+  color: var(--text-primary);
   cursor: pointer;
   font-size: 13px;
 }
-.new-conv-btn:hover { background: #f3f4f6; }
+.new-conv-btn:hover { background: var(--bg-hover); }
 .conv-item {
   display: flex;
   justify-content: space-between;
@@ -181,12 +186,13 @@ function handleExport(msg: any) {
   border-radius: 6px;
   cursor: pointer;
   margin-bottom: 4px;
+  color: var(--text-primary);
 }
-.conv-item:hover { background: #e5e7eb; }
-.conv-item.active { background: #dbeafe; }
+.conv-item:hover { background: var(--bg-hover); }
+.conv-item.active { background: var(--bg-hover); }
 .conv-title { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 .conv-delete {
-  background: none; border: none; cursor: pointer; color: #9ca3af;
+  background: none; border: none; cursor: pointer; color: var(--text-muted);
   font-size: 16px; padding: 0 4px;
 }
 .conv-delete:hover { color: #ef4444; }
@@ -200,47 +206,52 @@ function handleExport(msg: any) {
 .messages { flex: 1; overflow-y: auto; padding: 20px; }
 .message { margin-bottom: 16px; }
 .message.user .bubble {
-  background: #3b82f6; color: white; border-radius: 12px 12px 0 12px;
+  background: var(--user-bubble-bg); color: white; border-radius: 12px 12px 0 12px;
   padding: 12px 16px; max-width: 70%; margin-left: auto;
 }
 .message.agent .bubble {
-  background: #f3f4f6; border-radius: 12px 12px 12px 0;
+  background: var(--agent-bubble-bg); border-radius: 12px 12px 12px 0;
   padding: 12px 16px; max-width: 85%;
+  color: var(--text-primary);
 }
-.loading { color: #6b7280; font-style: italic; }
+.loading { color: var(--text-secondary); font-style: italic; }
 .steps-panel {
-  margin-bottom: 12px; border: 1px solid #e5e7eb;
-  border-radius: 8px; padding: 8px; background: #fafafa;
+  margin-bottom: 12px; border: 1px solid var(--steps-panel-border);
+  border-radius: 8px; padding: 8px; background: var(--steps-panel-bg);
 }
-.steps-panel summary { cursor: pointer; font-weight: 600; color: #374151; margin-bottom: 8px; }
+.steps-panel summary { cursor: pointer; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; }
 .step { margin-bottom: 8px; }
 .step-tag {
   display: inline-block; color: white; font-size: 12px;
   padding: 2px 8px; border-radius: 4px; margin-right: 8px;
 }
 .step-content {
-  margin: 4px 0 0 0; padding: 6px 10px; background: white;
+  margin: 4px 0 0 0; padding: 6px 10px; background: var(--bg-card);
   border-radius: 4px; font-size: 13px; white-space: pre-wrap; word-break: break-all;
+  color: var(--text-primary);
 }
-.answer { font-size: 15px; line-height: 1.6; color: #111827; }
+.answer { font-size: 15px; line-height: 1.6; color: var(--text-primary); }
 .quick-questions { padding: 8px 20px; display: flex; gap: 8px; flex-wrap: wrap; }
 .quick-questions button {
-  padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 16px;
-  background: white; cursor: pointer; font-size: 13px;
+  padding: 6px 12px; border: 1px solid var(--border-color); border-radius: 16px;
+  background: var(--bg-card); cursor: pointer; font-size: 13px;
+  color: var(--text-primary);
 }
-.quick-questions button:hover { background: #f3f4f6; }
-.input-area { display: flex; gap: 8px; padding: 16px 20px; border-top: 1px solid #e5e7eb; }
+.quick-questions button:hover { background: var(--bg-hover); }
+.input-area { display: flex; gap: 8px; padding: 16px 20px; border-top: 1px solid var(--border-color); }
 .input-area input {
-  flex: 1; padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;
+  flex: 1; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px;
+  font-size: 14px; background: var(--bg-input); color: var(--text-primary);
 }
 .input-area button {
   padding: 10px 20px; background: #3b82f6; color: white;
   border: none; border-radius: 8px; cursor: pointer; font-size: 14px;
 }
-.input-area button:disabled { background: #9ca3af; cursor: not-allowed; }
+.input-area button:disabled { background: var(--text-muted); cursor: not-allowed; }
 .export-btn {
-  padding: 4px 10px; border: 1px solid #d1d5db; border-radius: 4px;
-  background: white; cursor: pointer; font-size: 12px;
+  padding: 4px 10px; border: 1px solid var(--border-color); border-radius: 4px;
+  background: var(--bg-card); cursor: pointer; font-size: 12px;
+  color: var(--text-primary);
 }
-.export-btn:hover { background: #f3f4f6; }
+.export-btn:hover { background: var(--bg-hover); }
 </style>
