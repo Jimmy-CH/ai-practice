@@ -19,6 +19,11 @@ const router = createRouter({
           component: () => import('../components/AgentChat.vue'),
         },
         {
+          path: 'dashboard',
+          name: 'Dashboard',
+          component: () => import('../components/Dashboard.vue'),
+        },
+        {
           path: 'users',
           name: 'Users',
           component: () => import('../components/UserManage.vue'),
