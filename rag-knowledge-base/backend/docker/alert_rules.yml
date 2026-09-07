@@ -1,0 +1,72 @@
+# ============================================================
+# Prometheus 生产告警规则
+# ============================================================
+
+groups:
+  - name: rag-api-alerts
+    rules:
+      # 服务宕机告警
+      - alert: RAGServiceDown
+        expr: up{job="rag-fastapi"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "RAG API 服务不可用"
+          description: "实例 {{ $labels.instance }} 已失联超过 1 分钟"
+
+      # 高延迟告警（P95 > 10s）
+      - alert: RAGHighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="rag-fastapi"}[5m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RAG API P95 延迟过高"
+          description: "当前 P95 延迟: {{ $value | humanizeDuration }}，超过 10s 阈值"
+
+      # 高错误率告警（5xx > 5%）
+      - alert: RAGHighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{job="rag-fastapi",status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total{job="rag-fastapi"}[5m]))
+          ) > 0.05
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "RAG API 5xx 错误率过高"
+          description: "当前 5xx 错误率: {{ $value | humanizePercentage }}"
+
+      # 内存使用告警
+      - alert: RAGHighMemory
+        expr: process_resident_memory_bytes{job="rag-fastapi"} > 1.5e9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RAG API 内存使用过高"
+          description: "当前内存使用: {{ $value | humanize1024 }}iB，超过 1.5GB 阈值"
+
+  - name: infrastructure-alerts
+    rules:
+      # Redis 不可用
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis 服务不可用"
+
+      # 磁盘空间不足（预留 10%）
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "磁盘空间不足 10%"
+          description: "分区 {{ $labels.mountpoint }} 剩余空间 {{ $value | humanizePercentage }}"

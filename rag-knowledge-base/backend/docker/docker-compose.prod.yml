@@ -1,0 +1,194 @@
+# ============================================================
+# 生产环境 Docker Compose 编排
+# 使用方式: docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+# ============================================================
+
+services:
+  # ==================== 核心 API 服务 ====================
+  rag-api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: rag-api
+    restart: always
+    env_file:
+      - ../.env.prod
+    volumes:
+      # 持久化数据目录（避免容器重建丢失数据）
+      - chroma_data:/app/chroma_db
+      - upload_data:/app/uploaded_files
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - rag-internal
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    # 日志配置
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+        compress: "true"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; r = httpx.get('http://localhost:8000/health'); assert r.status_code == 200"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ==================== Nginx 反向代理 ====================
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: rag-nginx
+    restart: always
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      # - "${NGINX_HTTPS_PORT:-443}:443"  # 启用 HTTPS 后取消注释
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      # SSL 证书目录（启用 HTTPS 后取消注释）
+      # - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      rag-api:
+        condition: service_healthy
+    networks:
+      - rag-external
+      - rag-internal
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+  # ==================== Redis 语义缓存 ====================
+  redis:
+    image: redis/redis-stack:7.4-alpine
+    container_name: rag-redis
+    restart: always
+    # 生产环境不暴露端口到宿主机（仅内部网络访问）
+    # ports:
+    #   - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - rag-internal
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ==================== Prometheus 监控 ====================
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: rag-prometheus
+    restart: always
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    networks:
+      - rag-external
+      - rag-internal
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ==================== Grafana 可视化 ====================
+  grafana:
+    image: grafana/grafana:11.6.0
+    container_name: rag-grafana
+    restart: always
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-changeme_in_production}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://localhost:3000}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    networks:
+      - rag-external
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# ==================== 网络隔离 ====================
+networks:
+  rag-internal:
+    driver: bridge
+    internal: true   # 内部网络，不可从外部直接访问
+  rag-external:
+    driver: bridge
+
+# ==================== 持久化存储卷 ====================
+volumes:
+  chroma_data:
+    driver: local
+  upload_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  nginx_logs:
+    driver: local

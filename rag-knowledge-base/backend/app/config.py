@@ -39,6 +39,13 @@ class Settings(BaseSettings):
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
 
+    # ================= 生产环境配置 =================
+    # CORS 允许的来源域名（逗号分隔），默认 "*" 允许所有
+    ALLOWED_ORIGINS: str = "*"
+
+    # 日志级别：DEBUG / INFO / WARNING / ERROR
+    LOG_LEVEL: str = "INFO"
+
     model_config = SettingsConfigDict(
         # 指定环境变量文件路径
         env_file=str(BASE_DIR / ".env"),
