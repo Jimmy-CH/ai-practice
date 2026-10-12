@@ -12,3 +12,4 @@ def test_generate_three_traced_assets() -> None:
     assert response.status_code == 201
     assert {asset["kind"] for asset in response.json()} == {"announcement", "faq", "poster"}
     assert all(asset["citations"] for asset in response.json())
+    assert all(asset["id"] for asset in response.json())
