@@ -8,6 +8,12 @@ class TextSourceCreate(BaseModel):
     content: str = Field(min_length=1)
 
 
+class GitSourceCreate(BaseModel):
+    repository: str = Field(min_length=1, max_length=255)
+    release: str = Field(min_length=1, max_length=120)
+    content: str = Field(min_length=1)
+
+
 class SourceRead(TextSourceCreate):
     id: str
     project_id: str

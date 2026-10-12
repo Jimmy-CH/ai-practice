@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.models.content import ContentProject, Source
-from app.schemas.sources import SourceRead, TextSourceCreate
+from app.schemas.sources import GitSourceCreate, SourceRead, TextSourceCreate
 
 router = APIRouter(prefix="/projects/{project_id}/sources", tags=["sources"])
 webhook_router = APIRouter(prefix="/projects/{project_id}/webhooks", tags=["webhooks"])
@@ -20,6 +20,18 @@ async def create_text_source(project_id: str, payload: TextSourceCreate, db: Asy
     if await db.get(ContentProject, project_id) is None:
         raise HTTPException(status_code=404, detail="项目不存在")
     source = Source(project_id=project_id, name=payload.name, content=payload.content, content_hash=hashlib.sha256(payload.content.encode()).hexdigest())
+    db.add(source)
+    await db.commit()
+    await db.refresh(source)
+    return source
+
+
+@router.post("/git", response_model=SourceRead, status_code=status.HTTP_201_CREATED)
+async def create_git_source(project_id: str, payload: GitSourceCreate, db: AsyncSession = Depends(get_db)) -> Source:
+    if await db.get(ContentProject, project_id) is None:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    content = f"{payload.repository}@{payload.release}\n{payload.content}"
+    source = Source(project_id=project_id, name=f"{payload.repository}:{payload.release}", source_type="git", content=content, content_hash=hashlib.sha256(content.encode()).hexdigest())
     db.add(source)
     await db.commit()
     await db.refresh(source)
