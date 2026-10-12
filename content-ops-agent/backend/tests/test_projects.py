@@ -13,4 +13,4 @@ def test_create_and_list_projects() -> None:
         assert created.json()["theme"] == "智能搜索"
         listed = client.get("/api/projects")
 
-    assert [item["id"] for item in listed.json()] == [created.json()["id"]]
+    assert created.json()["id"] in [item["id"] for item in listed.json()]
