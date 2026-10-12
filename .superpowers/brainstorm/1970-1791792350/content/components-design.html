@@ -1,0 +1,12 @@
+<h2>设计第 2 部分：模块与用户操作</h2>
+<p class="subtitle">每个模块职责单一，Agent 只编排内容生成，导入、审核和导出独立可测。</p>
+<div class="cards">
+  <div class="card"><div class="card-body"><h3>来源中心</h3><p>创建内容项目；填写主题、受众、语气；上传文档；配置 Webhook；关联 Git 仓库并拉取 Release/提交。</p></div></div>
+  <div class="card"><div class="card-body"><h3>知识与溯源</h3><p>解析文档与发布记录，建立项目级知识索引；每条生成内容保存来源引用，供审核者查看。</p></div></div>
+  <div class="card"><div class="card-body"><h3>内容编排 Agent</h3><p>按内容类型调用专用提示词：公告结构化输出、FAQ 问答对、海报标题/卖点/视觉提示词；失败支持重试。</p></div></div>
+  <div class="card"><div class="card-body"><h3>创作工作台</h3><p>公告富文本编辑；FAQ 增删排序；海报模板、画布文本编辑与预览；每次保存形成不可变版本。</p></div></div>
+  <div class="card"><div class="card-body"><h3>审核工作台</h3><p>提交审核、通过或驳回并附评论；仅已通过版本可下载或创建待发布任务。</p></div></div>
+  <div class="card"><div class="card-body"><h3>交付与适配</h3><p>生成 DOCX/HTML/Markdown、PNG/PDF；定义统一发布适配器协议，使用模拟适配器记录任务结果。</p></div></div>
+</div>
+<div class="section"><h3>核心用户路径</h3><p>新建项目 → 导入主题/资料/发布上下文 → 一键生成三类资产 → 编辑并保存版本 → 提交审核 → 通过后下载或提交模拟发布。</p></div>
+<p>请确认该模块拆分与操作路径，或在对话中提出调整。</p>

@@ -1,0 +1,5 @@
+<h2>设计第 3 部分：数据、可靠性与验证</h2>
+<div class="section"><h3>核心数据模型</h3><p><strong>ContentProject</strong> 聚合活动与资料；<strong>Source</strong> 记录主题、文件、Webhook、Git 数据及校验状态；<strong>KnowledgeChunk</strong> 保存可检索片段与来源定位；<strong>ContentAsset</strong> 表示公告/FAQ/海报；<strong>AssetVersion</strong> 保存可编辑内容、生成参数与引用；<strong>Review</strong> 保存审核结论；<strong>DeliveryJob</strong> 跟踪下载或模拟发布。</p></div>
+<div class="section"><h3>可靠性与安全</h3><ul><li>Webhook 使用 HMAC 签名校验、时间戳防重放和幂等事件键。</li><li>Git 访问使用用户配置的访问令牌；令牌仅加密保存，接口不回显。</li><li>文件限类型、大小与恶意文件扫描；解析失败、检索为空、模型超时均返回可理解状态并可重试。</li><li>模型仅依据项目内来源生成；找不到依据时标记“需补充资料”，不编造事实。</li><li>所有修改、审核、下载和发布任务记录审计日志；按角色限制审核与交付操作。</li></ul></div>
+<div class="section"><h3>验收与测试</h3><ul><li>后端：来源导入、幂等 Webhook、检索引用、生成任务、版本/审核状态机、导出和适配器契约测试。</li><li>前端：项目创建、三类资产编辑、状态权限、失败重试与下载流程测试。</li><li>端到端：以模拟 Git/CI 事件和样例产品文档，产出可追溯的公告、FAQ、PNG 海报，并完成审核下载。</li></ul></div>
+<p>请确认本部分；确认后我会写入完整设计文档供你审核。</p>
