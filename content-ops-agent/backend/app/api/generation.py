@@ -8,6 +8,12 @@ from app.models.content import ContentAsset, ContentProject, Source
 router = APIRouter(prefix="/projects/{project_id}", tags=["generation"])
 
 
+@router.get("/assets")
+async def list_assets(project_id: str, db: AsyncSession = Depends(get_db)) -> list[dict]:
+    assets = list((await db.scalars(select(ContentAsset).where(ContentAsset.project_id == project_id))).all())
+    return [{"id": asset.id, "kind": asset.kind, "status": asset.status, "content": asset.content, "citations": asset.citations} for asset in assets]
+
+
 @router.post("/generate", status_code=status.HTTP_201_CREATED)
 async def generate_assets(project_id: str, db: AsyncSession = Depends(get_db)) -> list[dict]:
     project = await db.get(ContentProject, project_id)
