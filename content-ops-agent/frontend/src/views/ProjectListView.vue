@@ -12,4 +12,4 @@ async function submit() {
 }
 onMounted(load)
 </script>
-<template><section><h2>内容项目</h2><form @submit.prevent="submit"><input v-model="form.name" required placeholder="项目名称"><input v-model="form.theme" required placeholder="活动主题"><input v-model="form.audience" required placeholder="目标受众"><input v-model="form.tone" required placeholder="品牌语气"><button>创建项目</button></form><p v-if="error">{{ error }}</p><ul><li v-for="project in projects" :key="project.id">{{ project.name }} · {{ project.theme }}</li></ul></section></template>
+<template><section><h2>内容项目</h2><form @submit.prevent="submit"><input v-model="form.name" required placeholder="项目名称"><input v-model="form.theme" required placeholder="活动主题"><input v-model="form.audience" required placeholder="目标受众"><input v-model="form.tone" required placeholder="品牌语气"><button>创建项目</button></form><p v-if="error">{{ error }}</p><ul><li v-for="project in projects" :key="project.id"><RouterLink :to="`/projects/${project.id}/sources`">{{ project.name }} · {{ project.theme }}</RouterLink></li></ul></section></template>
