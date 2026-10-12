@@ -16,4 +16,4 @@ async function generate() {
   status.value = '公告、FAQ 与海报草稿已生成'
 }
 </script>
-<template><section><h2>来源中心</h2><input v-model="name" placeholder="资料名称"><textarea v-model="content" placeholder="粘贴产品文档、操作手册或发布说明"></textarea><button @click="importSource">导入资料</button><button @click="generate">一键生成</button><p>{{ status }}</p></section></template>
+<template><section><h2>来源中心</h2><input v-model="name" placeholder="资料名称"><textarea v-model="content" placeholder="粘贴产品文档、操作手册或发布说明"></textarea><button @click="importSource">导入资料</button><button @click="generate">一键生成</button><p>{{ status }}</p><RouterLink :to="`/projects/${route.params.id}/workspace`">进入创作审核工作台</RouterLink></section></template>
