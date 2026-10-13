@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.material_asset import MaterialAsset
@@ -135,3 +136,23 @@ async def review_material(
         return await svc.review_material(db, asset, action)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/{material_id}/download")
+async def download_material(
+    material_id: int,
+    user: UserOut = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    asset = await svc.get_material(db, material_id)
+    if not asset:
+        raise HTTPException(status_code=404, detail="资产不存在")
+    if user.role == "editor" and asset.owner_id != user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权操作该资产")
+    if asset.status != "approved":
+        raise HTTPException(status_code=400, detail="仅已审核通过的资产可下载")
+    return PlainTextResponse(
+        content=asset.content,
+        media_type="text/markdown",
+        headers={"Content-Disposition": f"attachment; filename=material_{asset.id}.md"},
+    )

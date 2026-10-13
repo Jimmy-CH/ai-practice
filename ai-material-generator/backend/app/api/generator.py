@@ -1,6 +1,13 @@
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.database import get_db
+from app.schemas.auth import UserOut
+from app.schemas.generation import SaveFromGenerationRequest
+from app.schemas.material import MaterialCreate, MaterialOut
+from app.api.auth import get_current_user
+from app.services import material_service as material_svc
 from app.services.docx_parser import parse_docx_file
 from app.services.analyzer import analyze_document
 from app.services.material_writer import generate_material, generate_all_materials
@@ -48,6 +55,17 @@ async def generate_endpoint(payload: dict):
         return await generate_material(title, analysis, audience, material_type)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"生成失败: {exc}") from exc
+
+
+@router.post("/materials/from-generation", response_model=MaterialOut)
+async def save_from_generation(
+    data: SaveFromGenerationRequest,
+    user: UserOut = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if user.role != "editor":
+        raise HTTPException(status_code=403, detail="需要 editor 角色")
+    return await material_svc.create_material(db, user.id, MaterialCreate(**data.model_dump()))
 
 
 @router.post("/generate-all")
