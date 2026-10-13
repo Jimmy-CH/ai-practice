@@ -12,6 +12,9 @@ ENV/
 # Environment
 .env
 
+# SQLite databases
+*.db
+
 # IDEs
 .idea/
 .vscode/
