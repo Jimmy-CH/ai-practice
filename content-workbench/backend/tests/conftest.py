@@ -21,6 +21,9 @@ async def client():
             yield session
 
     app.dependency_overrides[get_db] = override_db
+    from app.api.generation import get_generator
+    from app.services.generation import FakeGenerator
+    app.dependency_overrides[get_generator] = lambda: FakeGenerator()
     async with session_factory() as session:
         session.add_all([
             User(username="editor", password_hash=hash_password("editor123"), role="editor"),
