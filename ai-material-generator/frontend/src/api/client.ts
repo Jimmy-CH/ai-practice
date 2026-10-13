@@ -27,6 +27,7 @@ api.interceptors.response.use(
 )
 
 export interface AnalysisResult {
+  analysis_id?: number
   title: string
   '新增功能': string[]
   '变更与优化': string[]
