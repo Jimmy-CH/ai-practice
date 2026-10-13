@@ -36,6 +36,7 @@ export interface AnalysisResult {
 }
 
 export interface Material {
+  id?: number
   title: string
   content: string
   audience: string
@@ -45,6 +46,18 @@ export interface Material {
     material_type: string
     generator: string
   }
+  cached?: boolean
+}
+
+export interface GeneratedMaterial {
+  id: number
+  owner_id: number
+  source_title: string
+  audience: string
+  material_type: string
+  content: string
+  created_at?: string
+  updated_at?: string
 }
 
 export async function parseDocument(title: string, content: string, file?: File): Promise<AnalysisResult> {
@@ -86,6 +99,14 @@ export async function generateAllMaterials(
     analysis,
     audience,
   })
+  return response.data
+}
+
+export async function updateGeneratedMaterial(
+  id: number,
+  content: string,
+): Promise<GeneratedMaterial> {
+  const response = await api.put(`/generated-materials/${id}`, { content })
   return response.data
 }
 

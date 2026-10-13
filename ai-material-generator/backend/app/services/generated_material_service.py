@@ -3,6 +3,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.generated_material import GeneratedMaterial
 
 
+async def get_generated_material_by_id(
+    session: AsyncSession,
+    generated_material_id: int,
+) -> GeneratedMaterial | None:
+    return await session.get(GeneratedMaterial, generated_material_id)
+
+
 async def get_generated_material(
     session: AsyncSession,
     owner_id: int,
@@ -37,6 +44,17 @@ async def upsert_generated_material(
             material_type=material_type,
         )
         session.add(gm)
+    gm.content = content
+    await session.commit()
+    await session.refresh(gm)
+    return gm
+
+
+async def update_generated_material(
+    session: AsyncSession,
+    gm: GeneratedMaterial,
+    content: str,
+) -> GeneratedMaterial:
     gm.content = content
     await session.commit()
     await session.refresh(gm)

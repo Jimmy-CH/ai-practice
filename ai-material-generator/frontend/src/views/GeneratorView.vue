@@ -3,10 +3,10 @@ import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { marked } from 'marked'
 import type { AnalysisResult, Material } from '../api/client'
-import { parseDocument, generateMaterial, generateAllMaterials } from '../api/client'
+import { parseDocument, generateMaterial, generateAllMaterials, updateGeneratedMaterial } from '../api/client'
 import { saveFromGeneration } from '@/api/materials'
 import { updateAnalysis, type AnalysisUpdatePayload } from '@/api/analysis'
-import { Upload, Search, DocumentCopy, Download, Document, DocumentChecked, Warning, CircleCheck, RefreshRight } from '@element-plus/icons-vue'
+import { Upload, Search, DocumentCopy, Download, Document, DocumentChecked, Warning, CircleCheck, RefreshRight, Edit } from '@element-plus/icons-vue'
 
 const title = ref('网点管家 V3.2.0 版本迭代说明')
 const content = ref(`【版本】网点管家 V3.2.0\n【发布日期】2026-10-20\n【适用范围】全国加盟网点\n\n一、新增功能\n1. 新增「异常件一键上报」功能\n网点扫描异常件后，可在首页直接发起上报，系统自动带出运单号、异常类型、上报时间，无需手工填写。\n\n二、优化与调整\n1. 运单批量导入：导入失败时返回具体失败原因与失败行号，便于网点自行排错。\n2. 消息中心：重要通知将后台自动推送，先在小部分网点试点，逐步放开至 30% 网点。\n3. 在线客服：由「我的」调整至「首页 - 帮助中心」。\n4. 旧版对账单：统一使用新版对账单。\n\n三、注意事项\n1. 本次版本需网点管家升级至 V3.2.0 以上版本方可使用新功能。\n2. 派费日结数据存在 24 小时延迟，以财务系统最终数据为准。\n3. 升级期间请勿强制关闭 App，避免数据同步异常。\n\n四、风险提示\n如出现派费数据缺失，请勿重复提交申诉，等待系统次日补数即可。遇到问题请勿重复操作，及时联系区域客服。`)
@@ -22,6 +22,9 @@ const activeMaterialType = ref('version_announcement')
 const editingCategory = ref<string | null>(null)
 const editingIndex = ref<number>(-1)
 const editingText = ref('')
+
+const isEditingMaterial = ref(false)
+const editingMaterialContent = ref('')
 
 const audiences = ['网点管理员', '业务员', '内部汇报']
 const materialTypes = [
@@ -130,6 +133,33 @@ async function saveAsDraft() {
       analysis: JSON.stringify(analysis.value),
     })
     ElMessage.success('已保存为草稿')
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '保存失败')
+  }
+}
+
+function editMaterial() {
+  if (!currentMaterial.value) return
+  isEditingMaterial.value = true
+  editingMaterialContent.value = currentMaterial.value.content
+}
+
+function cancelMaterialEdit() {
+  isEditingMaterial.value = false
+  editingMaterialContent.value = ''
+}
+
+async function saveMaterialEdit() {
+  if (!currentMaterial.value || !currentMaterial.value.id) {
+    ElMessage.warning('当前物料未生成或不存在缓存记录')
+    return
+  }
+  try {
+    const updated = await updateGeneratedMaterial(currentMaterial.value.id, editingMaterialContent.value)
+    currentMaterial.value.content = updated.content
+    currentMaterial.value.cached = true
+    isEditingMaterial.value = false
+    ElMessage.success('物料内容已保存')
   } catch (e: any) {
     ElMessage.error(e.response?.data?.detail || '保存失败')
   }
@@ -413,14 +443,17 @@ function renderMarkdown(md: string) {
         <p class="generate-hint">生成后可直接复制或导出 Markdown</p>
 
         <div class="material-actions">
-          <el-button :disabled="!currentMaterial" @click="copyContent">
+          <el-button :disabled="!currentMaterial || isEditingMaterial" @click="copyContent">
             <el-icon><DocumentCopy /></el-icon> 复制
           </el-button>
-          <el-button :disabled="!currentMaterial" @click="downloadCurrent">
+          <el-button :disabled="!currentMaterial || isEditingMaterial" @click="downloadCurrent">
             <el-icon><Download /></el-icon> 下载本页
           </el-button>
-          <el-button :disabled="!currentMaterial" @click="saveAsDraft">
+          <el-button :disabled="!currentMaterial || isEditingMaterial" @click="saveAsDraft">
             <el-icon><DocumentChecked /></el-icon> 保存为草稿
+          </el-button>
+          <el-button :disabled="!currentMaterial || isEditingMaterial" @click="editMaterial">
+            <el-icon><Edit /></el-icon> 编辑
           </el-button>
           <el-button :disabled="!analysis" :loading="loading" @click="regenerate">
             <el-icon><RefreshRight /></el-icon> 重新生成
@@ -439,7 +472,19 @@ function renderMarkdown(md: string) {
             <span class="meta-sep">|</span>
             <span>生成方式：{{ currentMaterial.meta.generator }}</span>
           </div>
-          <div class="markdown-body" v-html="renderMarkdown(currentMaterial.content)" />
+          <template v-if="isEditingMaterial">
+            <el-input
+              v-model="editingMaterialContent"
+              type="textarea"
+              :rows="20"
+              class="material-editor"
+            />
+            <div class="material-edit-actions">
+              <el-button type="primary" @click="saveMaterialEdit">保存</el-button>
+              <el-button @click="cancelMaterialEdit">取消</el-button>
+            </div>
+          </template>
+          <div v-else class="markdown-body" v-html="renderMarkdown(currentMaterial.content)" />
         </div>
 
         <el-empty v-else description="点击「重新解析文档」生成物料" />

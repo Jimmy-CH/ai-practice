@@ -27,7 +27,7 @@ async def test_parse_text(client, monkeypatch):
 @pytest.mark.asyncio
 async def test_generate(client, monkeypatch):
     async def fake_generate(*args, **kwargs):
-        return {"title": "R", "content": "C", "audience": "网点管理员", "material_type": "version_announcement"}
+        return {"title": "R", "content": "C", "audience": "网点管理员", "material_type": "version_announcement", "meta": {"audience": "网点管理员", "material_type": "版本宣发稿", "generator": "DeepSeek"}}
     monkeypatch.setattr("app.api.generator.generate_material", fake_generate)
     login = await client.post("/api/auth/login", data={"username": "editor", "password": "editor123"})
     token = login.json()["access_token"]

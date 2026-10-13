@@ -5,6 +5,7 @@ from app.api.generator import router as generator_router
 from app.api.auth import router as auth_router
 from app.api.materials import router as materials_router
 from app.api.analyses import router as analyses_router
+from app.api.generated_materials import router as generated_materials_router
 from app.database import engine, Base, AsyncSessionLocal
 from app.services.auth_service import seed_users
 
@@ -28,6 +29,7 @@ app.add_middleware(
 app.include_router(auth_router, prefix="/api")
 app.include_router(materials_router, prefix="/api")
 app.include_router(analyses_router, prefix="/api/analyses")
+app.include_router(generated_materials_router, prefix="/api/generated-materials")
 app.include_router(generator_router, prefix="/api")
 
 

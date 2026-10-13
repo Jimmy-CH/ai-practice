@@ -77,10 +77,10 @@ async def generate_endpoint(
             return {**cached.to_dict(), "cached": True}
 
         result = await generate_material(title, analysis, audience, material_type)
-        await gm_svc.upsert_generated_material(
+        saved = await gm_svc.upsert_generated_material(
             db, user.id, title, audience, material_type, result["content"]
         )
-        return {**result, "cached": False}
+        return {**saved.to_dict(), "title": result["title"], "meta": result["meta"], "cached": False}
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"生成失败: {exc}") from exc
 
@@ -133,18 +133,19 @@ async def generate_all_endpoint(
                 missing_types.add(material_type)
 
         generated = await generate_all_materials(title, analysis, audience, missing_types)
+        generated_with_id = []
         for item in generated:
-            await gm_svc.upsert_generated_material(
+            saved = await gm_svc.upsert_generated_material(
                 db, user.id, title, audience, item["material_type"], item["content"]
             )
-            item["cached"] = False
+            generated_with_id.append({**saved.to_dict(), "title": item["title"], "meta": item["meta"], "cached": False})
 
         materials = []
         for material_type in MATERIAL_TYPES:
             if material_type in cached_materials:
                 materials.append(cached_materials[material_type])
             else:
-                for item in generated:
+                for item in generated_with_id:
                     if item["material_type"] == material_type:
                         materials.append(item)
                         break
