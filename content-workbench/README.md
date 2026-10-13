@@ -22,6 +22,10 @@ npm run dev
 - editor / editor123（编辑者：创建项目、贴资料、生成、编辑、下载、发布）
 - reviewer / review123（审核者：查看引用、通过/驳回、查看审计日志）
 
+## 使用手册
+
+详细使用说明、多资料生成机制与常见错误排查请参见 [docs/USER_GUIDE.md](docs/USER_GUIDE.md)。
+
 ## 验证
 
 ```powershell

@@ -47,7 +47,10 @@ onMounted(load)
   <section>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
       <h2>资料中心</h2>
-      <el-button @click="router.push('/projects')">返回列表</el-button>
+      <el-space>
+        <el-button @click="router.push('/projects')">返回列表</el-button>
+        <el-button type="primary" @click="router.push(`/projects/${projectId}/workspace`)">进入工作台</el-button>
+      </el-space>
     </div>
     <el-card title="粘贴资料" style="margin-bottom:16px">
       <el-input v-model="name" placeholder="资料名称" style="margin-bottom:8px" />
