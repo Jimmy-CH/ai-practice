@@ -1,4 +1,5 @@
 import hashlib
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -10,6 +11,7 @@ from app.auth import require_role
 from app.database import get_db
 from app.models.content import ContentAsset, ContentProject, DeliveryTask, ReviewRecord, Source
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
@@ -39,6 +41,7 @@ class SourceOut(BaseModel):
     id: str
     project_id: str
     name: str
+    content: str
     content_hash: str
     created_at: str
     model_config = {"from_attributes": True}
@@ -68,10 +71,12 @@ async def list_projects(user=Depends(require_role("editor")), db: AsyncSession =
 async def add_source(project_id: str, payload: SourceCreate, user=Depends(require_role("editor")), db: AsyncSession = Depends(get_db)):
     project = await db.get(ContentProject, project_id)
     if project is None:
+        logger.warning("添加资料失败: 项目不存在 project_id=%s", project_id)
         raise HTTPException(status_code=404, detail="项目不存在")
     content_hash = hashlib.sha256(payload.content.encode()).hexdigest()
     existing = (await db.scalars(select(Source).where(Source.project_id == project_id, Source.content_hash == content_hash))).first()
     if existing is not None:
+        logger.warning("添加资料重复: project_id=%s name=%s", project_id, payload.name)
         raise HTTPException(status_code=409, detail="资料内容重复")
     source = Source(
         project_id=project_id,
@@ -83,7 +88,7 @@ async def add_source(project_id: str, payload: SourceCreate, user=Depends(requir
     await db.commit()
     await db.refresh(source)
     await record_audit(db, user.username, "add_source", "source", source.id, detail={"project_id": project_id, "name": payload.name})
-    return SourceOut(id=source.id, project_id=source.project_id, name=source.name, content_hash=source.content_hash, created_at=str(source.created_at))
+    return SourceOut(id=source.id, project_id=source.project_id, name=source.name, content=source.content, content_hash=source.content_hash, created_at=str(source.created_at))
 
 
 @router.get("/{project_id}/sources", response_model=list[SourceOut])
@@ -92,7 +97,7 @@ async def list_sources(project_id: str, user=Depends(require_role("editor")), db
     if project is None:
         raise HTTPException(status_code=404, detail="项目不存在")
     sources = (await db.scalars(select(Source).where(Source.project_id == project_id))).all()
-    return [SourceOut(id=s.id, project_id=s.project_id, name=s.name, content_hash=s.content_hash, created_at=str(s.created_at)) for s in sources]
+    return [SourceOut(id=s.id, project_id=s.project_id, name=s.name, content=s.content, content_hash=s.content_hash, created_at=str(s.created_at)) for s in sources]
 
 
 @router.delete("/{project_id}", status_code=204)

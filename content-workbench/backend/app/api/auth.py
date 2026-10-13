@@ -1,3 +1,4 @@
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,6 +10,7 @@ from app.auth import get_current_user, verify_password
 from app.database import get_db
 from app.models.content import Token, User
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
@@ -21,10 +23,12 @@ class LoginPayload(BaseModel):
 async def login(payload: LoginPayload, db: AsyncSession = Depends(get_db)) -> dict:
     user = (await db.scalars(select(User).where(User.username == payload.username))).first()
     if user is None or not verify_password(payload.password, user.password_hash):
+        logger.warning("登录失败: username=%s", payload.username)
         raise HTTPException(status_code=401, detail="用户名或密码错误")
     token = uuid.uuid4().hex
     db.add(Token(token=token, user_id=user.id))
     await db.commit()
+    logger.info("登录成功: username=%s role=%s", user.username, user.role)
     return {"token": token, "username": user.username, "role": user.role}
 
 

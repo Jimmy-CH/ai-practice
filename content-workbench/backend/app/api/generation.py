@@ -35,10 +35,10 @@ async def generate_assets(project_id: str, db: AsyncSession = Depends(get_db), u
         raise HTTPException(status_code=404, detail="项目不存在")
     sources = list((await db.scalars(select(Source).where(Source.project_id == project_id))).all())
     if not sources:
-        raise HTTPException(status_code=422, detail="需补充资料")
+        raise HTTPException(status_code=422, detail="该项目暂无资料，请先添加资料后再生成")
     evidence = select_evidence([(s.id, s.content) for s in sources], [project.theme, project.audience], settings.max_evidence_chunks)
     if not evidence:
-        raise HTTPException(status_code=422, detail="需补充资料")
+        raise HTTPException(status_code=422, detail="现有资料与项目主题/受众不相关或内容过短，请补充相关资料")
     allowed = {item.source_id: item.text for item in evidence}
     try:
         raw = await generator.generate(project.theme, project.audience, [{"source_id": k, "text": v} for k, v in allowed.items()])

@@ -1,0 +1,127 @@
+{
+  "description": "content-workbench 项目与资料 API 测试数据示例",
+  "base_url": "http://127.0.0.1:8000/api",
+  "credentials": {
+    "editor": {
+      "username": "editor",
+      "password": "editor123"
+    },
+    "reviewer": {
+      "username": "reviewer",
+      "password": "review123"
+    }
+  },
+  "cases": {
+    "valid_project_with_relevant_sources": {
+      "name": "可生成项目-智能报表发布",
+      "project": {
+        "name": "可生成项目-智能报表发布",
+        "theme": "AI 智能报表新品发布",
+        "audience": "企业数据分析师",
+        "tone": "专业"
+      },
+      "sources": [
+        {
+          "name": "产品白皮书",
+          "content": "AI 智能报表是面向企业数据分析师的一站式分析平台。支持拖拽式探索、多维度下钻、智能洞察与一键导出。帮助企业快速发现数据价值，提升决策效率。"
+        },
+        {
+          "name": "用户场景",
+          "content": "企业数据分析师每天需要处理大量销售、运营数据。AI 智能报表通过自然语言查询和自动可视化，让分析师无需编写复杂 SQL 即可获得业务洞察。"
+        }
+      ],
+      "expected_generate_status": 201,
+      "note": "资料内容包含主题词（AI 智能报表）和受众词（企业数据分析师），应能正常生成三类资产"
+    },
+    "project_with_irrelevant_sources": {
+      "name": "拒答项目-资料不相关",
+      "project": {
+        "name": "拒答项目-资料不相关",
+        "theme": "AI 内容生成",
+        "audience": "企业用户",
+        "tone": "正式"
+      },
+      "sources": [
+        {
+          "name": "无关资料",
+          "content": "今天天气不错，适合出去散步。周末可以去公园野餐。"
+        }
+      ],
+      "expected_generate_status": 422,
+      "expected_generate_detail": "现有资料与项目主题/受众不相关或内容过短，请补充相关资料",
+      "note": "资料内容与项目主题/受众无关，应触发拒答"
+    },
+    "project_without_sources": {
+      "name": "拒答项目-无资料",
+      "project": {
+        "name": "拒答项目-无资料",
+        "theme": "AI 内容生成",
+        "audience": "企业用户",
+        "tone": "正式"
+      },
+      "sources": [],
+      "expected_generate_status": 422,
+      "expected_generate_detail": "该项目暂无资料，请先添加资料后再生成",
+      "note": "项目下无资料，应触发拒答"
+    },
+    "project_with_short_sources": {
+      "name": "拒答项目-资料过短",
+      "project": {
+        "name": "拒答项目-资料过短",
+        "theme": "AI 内容生成",
+        "audience": "企业用户",
+        "tone": "正式"
+      },
+      "sources": [
+        {
+          "name": "过短资料",
+          "content": "你好。"
+        }
+      ],
+      "expected_generate_status": 422,
+      "expected_generate_detail": "现有资料与项目主题/受众不相关或内容过短，请补充相关资料",
+      "note": "资料内容过短（小于 5 个字符）会被检索过滤，触发拒答"
+    }
+  },
+  "api_flow_example": {
+    "step_1_login": {
+      "method": "POST",
+      "url": "/auth/login",
+      "body": {
+        "username": "editor",
+        "password": "editor123"
+      }
+    },
+    "step_2_create_project": {
+      "method": "POST",
+      "url": "/projects",
+      "headers": {
+        "Authorization": "Bearer <token_from_step_1>"
+      },
+      "body": {
+        "name": "可生成项目-智能报表发布",
+        "theme": "AI 智能报表新品发布",
+        "audience": "企业数据分析师",
+        "tone": "专业"
+      }
+    },
+    "step_3_add_source": {
+      "method": "POST",
+      "url": "/projects/<project_id>/sources",
+      "headers": {
+        "Authorization": "Bearer <token_from_step_1>"
+      },
+      "body": {
+        "name": "产品白皮书",
+        "content": "AI 智能报表是面向企业数据分析师的一站式分析平台。支持拖拽式探索、多维度下钻、智能洞察与一键导出。帮助企业快速发现数据价值，提升决策效率。"
+      }
+    },
+    "step_4_generate": {
+      "method": "POST",
+      "url": "/projects/<project_id>/generate",
+      "headers": {
+        "Authorization": "Bearer <token_from_step_1>"
+      }
+    }
+  }
+}

@@ -40,15 +40,26 @@ class DeepSeekGenerator:
                 {"role": "user", "content": json.dumps({"theme": theme, "audience": audience, "evidence": evidence}, ensure_ascii=False)},
             ],
         }
-        async with httpx.AsyncClient(timeout=60) as client:
-            response = await client.post(
-                f"{self.base_url}/chat/completions",
-                json=payload,
-                headers={"Authorization": f"Bearer {self.api_key}"},
-            )
-            response.raise_for_status()
+        try:
+            async with httpx.AsyncClient(timeout=60) as client:
+                response = await client.post(
+                    f"{self.base_url}/chat/completions",
+                    json=payload,
+                    headers={"Authorization": f"Bearer {self.api_key}"},
+                )
+                response.raise_for_status()
+        except httpx.HTTPStatusError as error:
+            logger.error("DeepSeek 请求返回错误: status=%s body=%s", error.response.status_code, error.response.text)
+            raise
+        except httpx.RequestError as error:
+            logger.error("DeepSeek 网络请求失败: %s", error)
+            raise
         content = response.json()["choices"][0]["message"]["content"]
-        data = json.loads(content)
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError as error:
+            logger.error("DeepSeek 返回内容不是合法 JSON: %s", content[:200])
+            raise
         return data["assets"] if isinstance(data, dict) else data
 
 

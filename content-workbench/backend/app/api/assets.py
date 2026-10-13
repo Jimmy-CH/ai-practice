@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -10,6 +12,7 @@ from app.models.content import ContentAsset, ContentProject, ReviewRecord, User
 from app.export.renderers import render_html, render_markdown
 from app.services.generation import GenerationValidationError, validate_kind_content
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/assets", tags=["assets"])
 
 
@@ -25,6 +28,7 @@ class ReviewPayload(BaseModel):
 async def _load_asset(db: AsyncSession, asset_id: str) -> ContentAsset:
     asset = await db.get(ContentAsset, asset_id)
     if asset is None:
+        logger.warning("资产不存在: asset_id=%s", asset_id)
         raise HTTPException(status_code=404, detail="资产不存在")
     return asset
 
@@ -55,10 +59,12 @@ async def list_approved_assets(db: AsyncSession = Depends(get_db), _: User = Dep
 async def edit_asset(asset_id: str, payload: EditPayload, db: AsyncSession = Depends(get_db), user: User = Depends(require_role("editor"))) -> dict:
     asset = await _load_asset(db, asset_id)
     if asset.status == "pending_review":
+        logger.warning("编辑资产失败: 审核中不可编辑 asset_id=%s", asset_id)
         raise HTTPException(status_code=409, detail="审核中不可编辑")
     try:
         validate_kind_content(asset.kind, payload.content)
     except GenerationValidationError as error:
+        logger.warning("编辑资产校验失败: asset_id=%s error=%s", asset_id, error)
         raise HTTPException(status_code=422, detail=str(error)) from error
     before = asset.content
     asset.content = payload.content
@@ -66,6 +72,7 @@ async def edit_asset(asset_id: str, payload: EditPayload, db: AsyncSession = Dep
     if reset:
         asset.status = "draft"
     await db.commit()
+    logger.info("编辑资产成功: asset_id=%s user=%s status_reset=%s", asset.id, user.username, reset)
     await record_audit(db, user.username, "edit_asset", "asset", asset.id, detail={"before": before, "after": payload.content, "status_reset": reset})
     return {"id": asset.id, "kind": asset.kind, "status": asset.status, "content": asset.content}
 
@@ -74,9 +81,11 @@ async def edit_asset(asset_id: str, payload: EditPayload, db: AsyncSession = Dep
 async def submit_asset(asset_id: str, db: AsyncSession = Depends(get_db), user: User = Depends(require_role("editor"))) -> dict:
     asset = await _load_asset(db, asset_id)
     if asset.status not in {"draft", "rejected"}:
+        logger.warning("提交审核失败: 当前状态不可提交 asset_id=%s status=%s", asset_id, asset.status)
         raise HTTPException(status_code=409, detail="当前状态不可提交审核")
     asset.status = "pending_review"
     await db.commit()
+    logger.info("提交审核: asset_id=%s user=%s", asset.id, user.username)
     await record_audit(db, user.username, "submit_asset", "asset", asset.id)
     return {"id": asset.id, "status": asset.status}
 
@@ -85,10 +94,12 @@ async def submit_asset(asset_id: str, db: AsyncSession = Depends(get_db), user: 
 async def review_asset(asset_id: str, payload: ReviewPayload, db: AsyncSession = Depends(get_db), user: User = Depends(require_role("reviewer"))) -> dict:
     asset = await _load_asset(db, asset_id)
     if asset.status != "pending_review":
+        logger.warning("审核失败: 资产不在审核中 asset_id=%s status=%s", asset_id, asset.status)
         raise HTTPException(status_code=409, detail="资产不在审核中")
     asset.status = payload.decision
     db.add(ReviewRecord(asset_id=asset_id, decision=payload.decision, comment=payload.comment, reviewer=user.username))
     await db.commit()
+    logger.info("审核完成: asset_id=%s decision=%s reviewer=%s", asset.id, payload.decision, user.username)
     await record_audit(db, user.username, "review_asset", "asset", asset.id, detail={"decision": payload.decision, "comment": payload.comment})
     return {"id": asset.id, "status": asset.status}
 

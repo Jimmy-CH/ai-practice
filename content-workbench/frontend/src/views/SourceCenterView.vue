@@ -11,6 +11,8 @@ const sources = ref<any[]>([])
 const content = ref('')
 const name = ref('')
 const loading = ref(false)
+const dialogVisible = ref(false)
+const selectedSource = ref<any>(null)
 
 async function load() {
   loading.value = true
@@ -33,6 +35,11 @@ async function remove(sourceId: string) {
   await load()
 }
 
+function view(source: any) {
+  selectedSource.value = source
+  dialogVisible.value = true
+}
+
 onMounted(load)
 </script>
 
@@ -50,11 +57,16 @@ onMounted(load)
     <el-table v-loading="loading" :data="sources" border>
       <el-table-column prop="name" label="资料名" />
       <el-table-column prop="created_at" label="创建时间" />
-      <el-table-column label="操作" width="100">
+      <el-table-column label="操作" width="160">
         <template #default="{ row }">
+          <el-button size="small" @click="view(row)">查看</el-button>
           <el-button size="small" type="danger" @click="remove(row.id)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
+    <el-dialog v-model="dialogVisible" title="资料内容" width="600px">
+      <h3 v-if="selectedSource">{{ selectedSource.name }}</h3>
+      <p style="white-space:pre-wrap;word-break:break-word">{{ selectedSource?.content }}</p>
+    </el-dialog>
   </section>
 </template>
