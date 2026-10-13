@@ -4,6 +4,7 @@ import { ElMessage } from 'element-plus'
 import { marked } from 'marked'
 import type { AnalysisResult, Material } from '../api/client'
 import { parseDocument, generateMaterial, generateAllMaterials } from '../api/client'
+import { saveFromGeneration } from '@/api/materials'
 
 const title = ref('网点管家 V3.2.0 版本迭代说明')
 const content = ref(`【版本】网点管家 V3.2.0\n【发布日期】2026-10-20\n【适用范围】全国加盟网点\n\n一、新增功能\n1. 新增「异常件一键上报」功能\n网点扫描异常件后，可在首页直接发起上报，系统自动带出运单号、异常类型、上报时间，无需手工填写。\n\n二、优化与调整\n1. 运单批量导入：导入失败时返回具体失败原因与失败行号，便于网点自行排错。\n2. 消息中心：重要通知将后台自动推送，先在小部分网点试点，逐步放开至 30% 网点。\n3. 在线客服：由「我的」调整至「首页 - 帮助中心」。\n4. 旧版对账单：统一使用新版对账单。\n\n三、注意事项\n1. 本次版本需网点管家升级至 V3.2.0 以上版本方可使用新功能。\n2. 派费日结数据存在 24 小时延迟，以财务系统最终数据为准。\n3. 升级期间请勿强制关闭 App，避免数据同步异常。\n\n四、风险提示\n如出现派费数据缺失，请勿重复提交申诉，等待系统次日补数即可。遇到问题请勿重复操作，及时联系区域客服。`)
@@ -102,6 +103,23 @@ function downloadCurrent() {
   a.download = `${currentMaterial.value.title}.md`
   a.click()
   URL.revokeObjectURL(url)
+}
+
+async function saveAsDraft() {
+  if (!currentMaterial.value || !analysis.value) return
+  try {
+    await saveFromGeneration({
+      title: currentMaterial.value.title,
+      content: currentMaterial.value.content,
+      material_type: currentMaterial.value.meta.material_type,
+      audience: currentMaterial.value.meta.audience,
+      source_title: title.value,
+      analysis: JSON.stringify(analysis.value),
+    })
+    ElMessage.success('已保存为草稿')
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '保存失败')
+  }
 }
 
 function renderMarkdown(md: string) {
@@ -262,6 +280,9 @@ function renderMarkdown(md: string) {
           </el-button>
           <el-button :disabled="!currentMaterial" @click="downloadCurrent">
             <el-icon><Download /></el-icon> 下载本页
+          </el-button>
+          <el-button :disabled="!currentMaterial" @click="saveAsDraft">
+            <el-icon><DocumentChecked /></el-icon> 保存为草稿
           </el-button>
           <el-button type="primary" :loading="loading" :disabled="!analysis" @click="doGenerateAll">
             <el-icon><Document /></el-icon> 导出全部
