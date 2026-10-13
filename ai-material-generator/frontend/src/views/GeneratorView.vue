@@ -77,6 +77,9 @@ async function doGenerate(materialType: string) {
   loading.value = true
   try {
     currentMaterial.value = await generateMaterial(title.value, analysis.value, audience.value, materialType)
+    if ((currentMaterial.value as any).cached) {
+      ElMessage.success('已使用历史生成结果')
+    }
   } catch (e: any) {
     ElMessage.error(e.response?.data?.detail || '生成失败')
   } finally {
@@ -194,7 +197,11 @@ async function regenerate() {
   loading.value = true
   try {
     currentMaterial.value = await generateMaterial(title.value, analysis.value, audience.value, activeMaterialType.value)
-    ElMessage.success('已重新生成')
+    if ((currentMaterial.value as any).cached) {
+      ElMessage.success('已使用历史生成结果')
+    } else {
+      ElMessage.success('已重新生成')
+    }
   } catch (e: any) {
     ElMessage.error(e.response?.data?.detail || '重新生成失败')
   } finally {
