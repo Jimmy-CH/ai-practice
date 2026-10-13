@@ -27,10 +27,6 @@ function onResize() {
   isMobile.value = window.innerWidth < 768
 }
 
-function onConvSelect() {
-  convDrawerVisible.value = false
-}
-
 const quickQuestions = [
   '查询上月销量最高的商品',
   '各品类销售额对比',

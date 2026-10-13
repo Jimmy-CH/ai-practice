@@ -49,3 +49,15 @@ export async function updateProfile(email: string | null, phone: string | null):
 export async function changePassword(oldPassword: string, newPassword: string): Promise<void> {
   await api.put('/users/me/password', { old_password: oldPassword, new_password: newPassword })
 }
+
+export interface ProfileStats {
+  total_queries: number
+  saved_queries: number
+  shared_links: number
+  data_sources: number
+}
+
+export async function getProfileStats(): Promise<ProfileStats> {
+  const { data } = await api.get<ProfileStats>('/users/me/stats')
+  return data
+}

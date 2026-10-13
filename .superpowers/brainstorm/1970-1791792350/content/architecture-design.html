@@ -1,0 +1,24 @@
+<h2>设计第 1 部分：系统架构与数据流</h2>
+<p class="subtitle">独立的 content-ops-agent 子项目，沿用仓库的 FastAPI + Vue 3 技术路线。</p>
+<div class="section">
+  <div class="mockup">
+    <div class="mockup-header">输入层</div>
+    <div class="mockup-body">活动主题与目标受众 ｜ 文档上传（PDF/DOCX/MD/TXT） ｜ CI/CD Webhook ｜ Git Release / 提交记录</div>
+  </div>
+  <div style="text-align:center;font-size:28px">↓</div>
+  <div class="mockup">
+    <div class="mockup-header">内容生产层</div>
+    <div class="mockup-body">来源标准化与追溯 ｜ 文档切片/向量检索 ｜ Content Orchestrator 调用 LLM ｜ 分别生成公告、FAQ、海报文案与图片任务</div>
+  </div>
+  <div style="text-align:center;font-size:28px">↓</div>
+  <div class="mockup">
+    <div class="mockup-header">资产与工作流层</div>
+    <div class="mockup-body">内容版本管理 ｜ 富文本/FAQ 编辑 ｜ 海报编辑与预览 ｜ 草稿 → 待审核 → 已通过/已驳回 → 已下载/待发布</div>
+  </div>
+  <div style="text-align:center;font-size:28px">↓</div>
+  <div class="mockup">
+    <div class="mockup-header">交付层</div>
+    <div class="mockup-body">公告/FAQ：Markdown、HTML、DOCX ｜ 海报：PNG、PDF ｜ 发布适配器接口：CMS / 微信公众号 / 企业协作平台（首期不接真实渠道）</div>
+  </div>
+</div>
+<p>保留输入来源、检索证据、模型配置与版本关联，便于审核时追溯生成依据。点击此页任意区域或在对话中回复“确认/调整”。</p>

@@ -14,6 +14,7 @@ export interface AgentQueryResponse {
   answer: string
   steps: AgentStep[]
   success: boolean
+  chart_data?: any
   suggestions?: string[]
 }
 

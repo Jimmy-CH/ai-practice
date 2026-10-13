@@ -1,0 +1,31 @@
+<h2>请选择首期系统实现方向</h2>
+<p class="subtitle">三种方案都覆盖：多来源输入、公告/FAQ/海报生成、人工审核、下载，以及渠道适配接口。</p>
+<div class="options">
+  <div class="option" data-choice="new-service" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>独立内容运营 Agent（推荐）</h3>
+      <p>新建独立前后端；通过可复用模块接入 RAG、Agent 与认证能力。</p>
+      <div class="mockup"><div class="mockup-header">输入 → 知识检索 → 内容编排 Agent → 审核 → 下载/发布适配器</div></div>
+      <p>边界清晰，最适合完整业务工作流与后续扩展。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="extend-rag" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>扩展现有 RAG 知识库</h3>
+      <p>在 rag-knowledge-base 上补充项目、内容资产、审核与海报生成。</p>
+      <div class="mockup"><div class="mockup-header">既有文档库 + 问答 → 内容生成/审核模块</div></div>
+      <p>最快复用上传与检索，但业务语义会与知识库耦合。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="extend-data-agent" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>扩展现有 data-agent</h3>
+      <p>在现有 Agent、用户与 RBAC 基础上增加内容生产工作流。</p>
+      <div class="mockup"><div class="mockup-header">既有 Agent/RBAC → 内容工具链 → 审核工作台</div></div>
+      <p>可复用鉴权较多，但数据分析与内容运营职责会混在同一应用。</p>
+    </div>
+  </div>
+</div>

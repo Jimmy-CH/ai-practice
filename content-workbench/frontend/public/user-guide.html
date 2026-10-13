@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>内容生产发布工作台 - 网站使用手册</title>
+  <style>
+    :root {
+      --primary: #409eff;
+      --primary-dark: #337ecc;
+      --success: #67c23a;
+      --warning: #e6a23c;
+      --danger: #f56c6c;
+      --text: #303133;
+      --text-secondary: #606266;
+      --border: #e4e7ed;
+      --bg: #f5f7fa;
+      --card-bg: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.7;
+    }
+    header {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      color: #fff;
+      padding: 64px 20px;
+      text-align: center;
+    }
+    header h1 { margin: 0 0 12px; font-size: 2.5rem; }
+    header p { margin: 0; font-size: 1.1rem; opacity: .9; }
+    nav {
+      position: sticky;
+      top: 0;
+      background: rgba(255,255,255,.95);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+      z-index: 100;
+    }
+    nav ul {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 12px 20px;
+      list-style: none;
+    }
+    nav a {
+      display: block;
+      padding: 8px 14px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      border-radius: 6px;
+      font-size: .9rem;
+      transition: all .2s;
+    }
+    nav a:hover, nav a.active {
+      background: var(--primary);
+      color: #fff;
+    }
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 32px 20px 80px;
+    }
+    section {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 32px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 20px rgba(0,0,0,.04);
+    }
+    h2 {
+      margin-top: 0;
+      padding-bottom: 12px;
+      border-bottom: 2px solid var(--border);
+      font-size: 1.6rem;
+    }
+    h3 { color: var(--primary-dark); margin-top: 28px; }
+    p { margin: 12px 0; }
+    ul, ol { padding-left: 22px; }
+    li { margin: 8px 0; }
+    code {
+      background: #f2f6fc;
+      color: #476582;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: .9em;
+    }
+    pre {
+      background: #282c34;
+      color: #abb2bf;
+      padding: 16px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: .9rem;
+      line-height: 1.5;
+    }
+    pre code { background: transparent; color: inherit; padding: 0; }
+    .note {
+      background: #fdf6ec;
+      border-left: 4px solid var(--warning);
+      padding: 16px;
+      border-radius: 6px;
+      margin: 16px 0;
+    }
+    .tip {
+      background: #f0f9ff;
+      border-left: 4px solid var(--primary);
+      padding: 16px;
+      border-radius: 6px;
+      margin: 16px 0;
+    }
+    .error-box {
+      background: #fef0f0;
+      border-left: 4px solid var(--danger);
+      padding: 16px;
+      border-radius: 6px;
+      margin: 16px 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 12px;
+      text-align: left;
+    }
+    th { background: #f5f7fa; }
+    .step {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      margin: 18px 0;
+    }
+    .step-number {
+      flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      background: var(--primary);
+      color: #fff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+    }
+    .step-content { flex: 1; }
+    footer {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-secondary);
+      font-size: .9rem;
+    }
+    @media (max-width: 640px) {
+      header h1 { font-size: 1.8rem; }
+      section { padding: 20px; }
+      nav ul { justify-content: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>内容生产发布工作台</h1>
+    <p>网站使用手册 · 面向内部运营团队的 AI 内容生产工具</p>
+  </header>
+
+  <nav>
+    <ul>
+      <li><a href="#intro" class="active">简介</a></li>
+      <li><a href="#env">环境准备</a></li>
+      <li><a href="#start">启动服务</a></li>
+      <li><a href="#roles">账号角色</a></li>
+      <li><a href="#workflow">业务流程</a></li>
+      <li><a href="#mechanism">生成机制</a></li>
+      <li><a href="#errors">常见问题</a></li>
+      <li><a href="#testdata">测试数据</a></li>
+      <li><a href="#verify">验证</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <section id="intro">
+      <h2>1. 系统简介</h2>
+      <p>内容生产发布工作台帮助内部运营团队将活动主题、产品文档、操作手册等原始资料，一键转化为可直接发布的标准化内容资产。</p>
+      <ul>
+        <li>创建内容项目并设定主题、受众、语气</li>
+        <li>粘贴/导入产品文档、操作手册等原始资料</li>
+        <li>一键生成三类资产：<strong>公告（announcement）</strong>、<strong>FAQ（faq）</strong>、<strong>海报文案（poster）</strong></li>
+        <li>覆盖式编辑、提交审核、审核者审阅、下载 Markdown/HTML、模拟发布</li>
+        <li>完整的操作审计日志，确保生成依据可追溯</li>
+      </ul>
+    </section>
+
+    <section id="env">
+      <h2>2. 环境准备</h2>
+
+      <h3>2.1 安装后端依赖</h3>
+      <pre><code>cd content-workbench/backend
+python -m venv venv
+.\venv\Scripts\python.exe -m pip install -r requirements.txt</code></pre>
+
+      <h3>2.2 安装前端依赖</h3>
+      <pre><code>cd content-workbench/frontend
+npm install</code></pre>
+
+      <h3>2.3 配置环境变量</h3>
+      <p>复制示例配置文件并填入 DeepSeek API Key：</p>
+      <pre><code>cd content-workbench/backend
+copy .env.example .env</code></pre>
+      <p>编辑 <code>.env</code>：</p>
+      <pre><code>DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+LOG_LEVEL=INFO</code></pre>
+      <div class="tip">
+        <strong>提示：</strong>pydantic-settings v2 不会自动读取 <code>.env</code>，项目已在 <code>app/config.py</code> 中显式声明 <code>env_file</code> 加载路径。
+      </div>
+    </section>
+
+    <section id="start">
+      <h2>3. 启动服务</h2>
+
+      <h3>3.1 真实生成模式</h3>
+      <pre><code># 终端 1：启动后端
+cd content-workbench/backend
+$env:DATABASE_URL="sqlite+aiosqlite:///./workbench.db"
+.\venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+
+# 终端 2：启动前端
+cd content-workbench/frontend
+npm run dev</code></pre>
+      <p>访问地址：</p>
+      <ul>
+        <li>前端：<code>http://localhost:5173/</code></li>
+        <li>后端 API 文档：<code>http://127.0.0.1:8000/docs</code></li>
+      </ul>
+
+      <h3>3.2 测试/演示模式（不调用真实 DeepSeek）</h3>
+      <p>使用专用 E2E 入口，自动注入 <code>FakeGenerator</code>：</p>
+      <pre><code>cd content-workbench/backend
+$env:DATABASE_URL="sqlite+aiosqlite:///./e2e.db"
+.\venv\Scripts\python.exe -m uvicorn app.e2e_main:app --host 127.0.0.1 --port 8000</code></pre>
+      <div class="note">
+        <strong>注意端口占用：</strong>如果 <code>8000</code> 端口出现幽灵占用（<code>netstat</code> 显示 LISTENING 但无法连接或 taskkill 找不到进程），请改用 <code>8001</code>，并同步在前端 <code>frontend/.env.local</code> 中设置 <code>VITE_API_TARGET=http://127.0.0.1:8001</code>，然后重启 vite dev server。
+      </div>
+    </section>
+
+    <section id="roles">
+      <h2>4. 账号与角色</h2>
+      <table>
+        <tr>
+          <th>角色</th>
+          <th>用户名</th>
+          <th>密码</th>
+          <th>权限</th>
+        </tr>
+        <tr>
+          <td>编辑者</td>
+          <td><code>editor</code></td>
+          <td><code>editor123</code></td>
+          <td>创建项目、添加资料、一键生成、编辑资产、提交审核、下载 approved 资产、模拟发布</td>
+        </tr>
+        <tr>
+          <td>审核者</td>
+          <td><code>reviewer</code></td>
+          <td><code>review123</code></td>
+          <td>查看待审资产、通过/驳回审核、查看审计日志</td>
+        </tr>
+      </table>
+    </section>
+
+    <section id="workflow">
+      <h2>5. 完整业务流程</h2>
+
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <h3>创建项目</h3>
+          <p>使用 <code>editor</code> 登录，进入「项目中心」，点击「新建项目」，填写项目名称、主题、受众、语气。</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <h3>添加资料</h3>
+          <p>进入「资料中心」，输入资料名称和正文，点击「添加资料」。可添加多条资料，系统会自动按内容哈希去重。添加完成后可点击「查看」预览原文，点击「进入工作台」跳转。</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <h3>一键生成</h3>
+          <p>在创作工作台点击「一键生成」，系统会读取该项目下全部资料，从中筛选最相关的片段作为证据，生成 announcement、faq、poster 三类资产。</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-number">4</div>
+        <div class="step-content">
+          <h3>编辑与提交审核</h3>
+          <p>编辑者可对 draft 资产进行覆盖式编辑，满意后点击「提交审核」。资产进入 <code>pending_review</code> 状态后禁止再次编辑；approved 资产若被再次编辑，状态会自动回落为 draft。</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-number">5</div>
+        <div class="step-content">
+          <h3>审核与发布</h3>
+          <p>使用 <code>reviewer</code> 登录，进入「审核与交付」查看待审列表，查看资产内容及引用来源后选择「通过」或「驳回」。审核通过后，编辑者可下载 Markdown/HTML 或创建模拟发布任务。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="mechanism">
+      <h2>6. 多资料生成机制</h2>
+      <p>当用户提交多个资料时，<strong>系统不会只使用某一个资料</strong>，而是从所有资料中挑选与项目主题/受众最相关的若干片段：</p>
+      <ol>
+        <li>遍历项目下所有资料</li>
+        <li>将每条资料按空行、句号、感叹号、问号切分成片段</li>
+        <li>过滤掉长度小于 5 个字符的片段</li>
+        <li>用项目 <code>theme</code> 和 <code>audience</code> 作为关键词，统计每个片段命中关键词的次数</li>
+        <li>只保留命中次数大于 0 的片段，按分数从高到低排序</li>
+        <li>取前 <code>max_evidence_chunks</code> 条作为最终证据，交给大模型生成</li>
+      </ol>
+      <div class="tip">
+        <strong>提示：</strong>资料越多、相关片段越丰富，生成结果的可信度越高；但如果所有资料都没有命中项目主题或受众关键词，系统会拒答。
+      </div>
+    </section>
+
+    <section id="errors">
+      <h2>7. 常见问题：提示缺少资料</h2>
+
+      <h3>7.1 项目下没有任何资料</h3>
+      <div class="error-box">
+        <strong>错误信息：</strong>该项目暂无资料，请先添加资料后再生成
+      </div>
+      <p><strong>解决：</strong>在资料中心添加至少一条资料。</p>
+
+      <h3>7.2 资料与项目主题/受众不相关或内容过短</h3>
+      <div class="error-box">
+        <strong>错误信息：</strong>现有资料与项目主题/受众不相关或内容过短，请补充相关资料
+      </div>
+      <p><strong>触发原因：</strong></p>
+      <ul>
+        <li>资料正文没有包含项目的 theme 或 audience 关键词</li>
+        <li>资料片段长度小于 5 个字符，被检索过滤</li>
+        <li>资料内容虽然相关，但措辞与主题/受众关键词不匹配</li>
+      </ul>
+      <p><strong>解决：</strong></p>
+      <ul>
+        <li>在资料中明确写出项目主题词和受众词</li>
+        <li>避免只粘贴过短的片段</li>
+        <li>确保资料正文与项目设定高度相关</li>
+      </ul>
+    </section>
+
+    <section id="testdata">
+      <h2>8. 快速生成测试数据</h2>
+
+      <h3>8.1 一键生成完整演示数据</h3>
+      <p>在测试模式下启动后端后，运行脚本：</p>
+      <pre><code>cd content-workbench/backend
+$env:WORKBENCH_API_URL="http://127.0.0.1:8000/api"
+.\venv\Scripts\python seed_demo_data.py</code></pre>
+      <p>该脚本会自动完成：创建项目 → 添加资料 → 一键生成 → 提交审核 → 审核通过 → 模拟发布。</p>
+
+      <h3>8.2 API 测试数据示例</h3>
+      <p>文件 <code>content-workbench/backend/test_data_sample.json</code> 提供了可直接用于 Postman 或 curl 的测试数据，包括：</p>
+      <ul>
+        <li>可正常生成的项目与资料</li>
+        <li>资料不相关、无资料、资料过短等拒答场景</li>
+        <li>登录、创建项目、添加资料、一键生成的完整请求模板</li>
+      </ul>
+    </section>
+
+    <section id="verify">
+      <h2>9. 测试与验证</h2>
+
+      <h3>9.1 后端单元测试</h3>
+      <pre><code>cd content-workbench/backend
+.\venv\Scripts\python.exe -m pytest tests -v</code></pre>
+      <p>当前基线：45 passed。</p>
+
+      <h3>9.2 前端构建</h3>
+      <pre><code>cd content-workbench/frontend
+npm run build</code></pre>
+      <p>构建成功会输出 <code>dist/</code> 目录。</p>
+
+      <h3>9.3 注意事项</h3>
+      <ul>
+        <li>资料按内容哈希去重，重复提交相同内容会返回 409</li>
+        <li>仅 <code>approved</code> 状态的资产允许下载和模拟发布</li>
+        <li>无足够证据时系统会拒答并返回 422，不会产生半成品资产</li>
+        <li>所有关键操作均记录审计日志</li>
+        <li>开发调试时可使用 <code>app.e2e_main:app</code> 入口避免真实 LLM 调用</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    <p>内容生产发布工作台 · 网站使用手册</p>
+    <p>相关文档：需求设计 · 实施计划 · E2E 测试设计 · 生成拒答诊断</p>
+  </footer>
+
+  <script>
+    // 简单的导航高亮
+    const sections = document.querySelectorAll('section[id]');
+    const links = document.querySelectorAll('nav a');
+    function onScroll() {
+      let current = '';
+      sections.forEach(section => {
+        const top = section.offsetTop - 80;
+        if (scrollY >= top) current = section.getAttribute('id');
+      });
+      links.forEach(link => {
+        link.classList.toggle('active', link.getAttribute('href') === '#' + current);
+      });
+    }
+    window.addEventListener('scroll', onScroll);
+    onScroll();
+  </script>
+</body>
+</html>
