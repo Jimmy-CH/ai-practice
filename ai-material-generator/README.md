@@ -14,11 +14,12 @@
   - 海报脚本
   - 培训课件大纲
 - 一键复制、下载单页、导出全部 Markdown
+- 编辑与审核工作流：生成后可保存为草稿，编辑后提交审核，reviewer 通过/驳回，仅 approved 资产可下载
 
 ## 技术栈
 
-- 后端：Python 3.11、FastAPI、python-docx、httpx、DeepSeek API
-- 前端：Vue 3 + TypeScript + Vite + Element Plus + Axios + marked
+- 后端：Python 3.11、FastAPI、SQLAlchemy 2.0 async、aiosqlite、python-docx、httpx、passlib、python-jose、DeepSeek API
+- 前端：Vue 3 + TypeScript + Vite + Element Plus + Pinia + Vue Router + Axios + marked
 
 ## 启动
 
@@ -42,6 +43,19 @@ npm run dev
 ```
 
 访问 http://localhost:5173/
+
+## 编辑与审核流程
+
+1. editor 登录后生成物料，点击「保存为草稿」。
+2. 在「我的资产」页面编辑内容，确认后点击「提交审核」。
+3. reviewer 登录后进入「审核」页面，对资产进行「通过」或「驳回」。
+4. 已通过资产在「已审核」页面可下载 Markdown。
+5. 已 approved 资产被再次编辑后状态自动回落为 draft，需重新审核。
+
+内置账号：
+
+- editor / editor123
+- reviewer / reviewer123
 
 ## 测试
 
