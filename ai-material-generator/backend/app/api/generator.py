@@ -28,6 +28,7 @@ async def parse_endpoint(
         raise HTTPException(status_code=400, detail="请输入文档正文或上传 .docx 文件")
     if file and not file.filename.endswith(".docx"):
         raise HTTPException(status_code=400, detail="仅支持 .docx 格式 Word 文档")
+    tmp_path = None
     try:
         existing = await analysis_svc.get_analysis_by_title(db, user.id, title)
         if existing is not None:
@@ -39,7 +40,6 @@ async def parse_endpoint(
                 tmp.write(await file.read())
                 tmp_path = tmp.name
             content = parse_docx_file(tmp_path)
-            Path(tmp_path).unlink(missing_ok=True)
         if not content.strip():
             raise HTTPException(status_code=400, detail="文档正文为空")
         result = await analyze_document(title, content)
@@ -49,10 +49,18 @@ async def parse_endpoint(
         raise
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"文档解析失败: {exc}") from exc
+    finally:
+        if tmp_path:
+            Path(tmp_path).unlink(missing_ok=True)
 
 
 @router.post("/generate")
-async def generate_endpoint(payload: dict):
+async def generate_endpoint(
+    payload: dict,
+    user: UserOut = Depends(get_current_user),
+):
+    if user.role != "editor":
+        raise HTTPException(status_code=403, detail="需要 editor 角色")
     title = payload.get("title", "")
     analysis = payload.get("analysis", {})
     audience = payload.get("audience", "")
@@ -77,7 +85,12 @@ async def save_from_generation(
 
 
 @router.post("/generate-all")
-async def generate_all_endpoint(payload: dict):
+async def generate_all_endpoint(
+    payload: dict,
+    user: UserOut = Depends(get_current_user),
+):
+    if user.role != "editor":
+        raise HTTPException(status_code=403, detail="需要 editor 角色")
     title = payload.get("title", "")
     analysis = payload.get("analysis", {})
     audience = payload.get("audience", "")

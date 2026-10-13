@@ -33,11 +33,17 @@ def test_generate(client, monkeypatch):
     async def fake_generate(*args, **kwargs):
         return {"title": "R", "content": "C", "audience": "网点管理员", "material_type": "version_announcement"}
     monkeypatch.setattr("app.api.generator.generate_material", fake_generate)
-    response = client.post("/api/generate", json={
-        "title": "T",
-        "analysis": {"新增功能": ["A"]},
-        "audience": "网点管理员",
-        "material_type": "version_announcement",
-    })
+    login = client.post("/api/auth/login", data={"username": "editor", "password": "editor123"})
+    token = login.json()["access_token"]
+    response = client.post(
+        "/api/generate",
+        json={
+            "title": "T",
+            "analysis": {"新增功能": ["A"]},
+            "audience": "网点管理员",
+            "material_type": "version_announcement",
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert response.status_code == 200
     assert response.json()["title"] == "R"
