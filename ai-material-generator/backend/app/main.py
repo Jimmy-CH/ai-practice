@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.generator import router as generator_router
 from app.api.auth import router as auth_router
+from app.api.materials import router as materials_router
 from app.database import engine, Base, AsyncSessionLocal
 from app.services.auth_service import seed_users
 
@@ -24,6 +25,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(auth_router, prefix="/api")
+app.include_router(materials_router, prefix="/api")
 app.include_router(generator_router, prefix="/api")
 
 
