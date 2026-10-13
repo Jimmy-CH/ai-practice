@@ -85,8 +85,13 @@ async def generate_material(title: str, analysis: dict, audience: str, material_
     }
 
 
-async def generate_all_materials(title: str, analysis: dict, audience: str) -> list[dict]:
+async def generate_all_materials(
+    title: str, analysis: dict, audience: str, skip_types: set[str] | None = None
+) -> list[dict]:
+    skip_types = skip_types or set()
     materials = []
     for material_type in MATERIAL_TYPES:
+        if material_type in skip_types:
+            continue
         materials.append(await generate_material(title, analysis, audience, material_type))
     return materials

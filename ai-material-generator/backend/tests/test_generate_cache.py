@@ -60,3 +60,29 @@ async def test_generate_uses_cache(client, editor_token):
     assert r.json()["content"] == "C"
     assert r.json()["cached"] is True
     mock_generate.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_generate_all_caches_and_reuses(client, editor_token):
+    with patch("app.api.generator.generate_material", side_effect=lambda title, analysis, audience, mt: {
+        "title": f"R-{mt}",
+        "content": f"C-{mt}",
+        "audience": audience,
+        "material_type": mt,
+        "meta": {"audience": audience, "material_type": mt, "generator": "DeepSeek"},
+    }) as mock_generate:
+        r = await client.post(
+            "/api/generate-all",
+            json={"title": "T", "analysis": {"新增功能": ["A"]}, "audience": "网点管理员"},
+            headers={"Authorization": f"Bearer {editor_token}"},
+        )
+        assert r.status_code == 200
+        first_count = mock_generate.call_count
+
+        r2 = await client.post(
+            "/api/generate-all",
+            json={"title": "T", "analysis": {"新增功能": ["A"]}, "audience": "网点管理员"},
+            headers={"Authorization": f"Bearer {editor_token}"},
+        )
+        assert r2.status_code == 200
+        assert mock_generate.call_count == first_count

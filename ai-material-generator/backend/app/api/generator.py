@@ -12,7 +12,7 @@ from app.services import analysis_service as analysis_svc
 from app.services import generated_material_service as gm_svc
 from app.services.docx_parser import parse_docx_file
 from app.services.analyzer import analyze_document
-from app.services.material_writer import generate_material, generate_all_materials
+from app.services.material_writer import generate_material, generate_all_materials, MATERIAL_TYPES
 
 router = APIRouter()
 
@@ -100,6 +100,7 @@ async def save_from_generation(
 async def generate_all_endpoint(
     payload: dict,
     user: UserOut = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     if user.role != "editor":
         raise HTTPException(status_code=403, detail="需要 editor 角色")
@@ -109,7 +110,45 @@ async def generate_all_endpoint(
     if not analysis or not audience:
         raise HTTPException(status_code=400, detail="缺少必要参数")
     try:
-        materials = await generate_all_materials(title, analysis, audience)
+        cached_materials = {}
+        missing_types = set()
+        for material_type in MATERIAL_TYPES:
+            cached = await gm_svc.get_generated_material(
+                db, user.id, title, audience, material_type
+            )
+            if cached is not None:
+                cached_materials[material_type] = {
+                    "title": title,
+                    "content": cached.content,
+                    "audience": audience,
+                    "material_type": material_type,
+                    "meta": {
+                        "audience": audience,
+                        "material_type": MATERIAL_TYPES[material_type],
+                        "generator": "DeepSeek",
+                    },
+                    "cached": True,
+                }
+            else:
+                missing_types.add(material_type)
+
+        generated = await generate_all_materials(title, analysis, audience, missing_types)
+        for item in generated:
+            await gm_svc.upsert_generated_material(
+                db, user.id, title, audience, item["material_type"], item["content"]
+            )
+            item["cached"] = False
+
+        materials = []
+        for material_type in MATERIAL_TYPES:
+            if material_type in cached_materials:
+                materials.append(cached_materials[material_type])
+            else:
+                for item in generated:
+                    if item["material_type"] == material_type:
+                        materials.append(item)
+                        break
+
         return {"audience": audience, "materials": materials}
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"生成失败: {exc}") from exc
