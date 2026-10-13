@@ -1,0 +1,337 @@
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+import { ElMessage } from 'element-plus'
+import { marked } from 'marked'
+import type { AnalysisResult, Material } from '../api/client'
+import { parseDocument, generateMaterial, generateAllMaterials } from '../api/client'
+
+const title = ref('网点管家 V3.2.0 版本迭代说明')
+const content = ref(`【版本】网点管家 V3.2.0\n【发布日期】2026-10-20\n【适用范围】全国加盟网点\n\n一、新增功能\n1. 新增「异常件一键上报」功能\n网点扫描异常件后，可在首页直接发起上报，系统自动带出运单号、异常类型、上报时间，无需手工填写。\n\n二、优化与调整\n1. 运单批量导入：导入失败时返回具体失败原因与失败行号，便于网点自行排错。\n2. 消息中心：重要通知将后台自动推送，先在小部分网点试点，逐步放开至 30% 网点。\n3. 在线客服：由「我的」调整至「首页 - 帮助中心」。\n4. 旧版对账单：统一使用新版对账单。\n\n三、注意事项\n1. 本次版本需网点管家升级至 V3.2.0 以上版本方可使用新功能。\n2. 派费日结数据存在 24 小时延迟，以财务系统最终数据为准。\n3. 升级期间请勿强制关闭 App，避免数据同步异常。\n\n四、风险提示\n如出现派费数据缺失，请勿重复提交申诉，等待系统次日补数即可。遇到问题请勿重复操作，及时联系区域客服。`)
+const file = ref<File | null>(null)
+const analysis = ref<AnalysisResult | null>(null)
+const currentMaterial = ref<Material | null>(null)
+const allMaterials = ref<Material[]>([])
+const loading = ref(false)
+const analysisCollapsed = ref(false)
+const audience = ref('网点管理员')
+const activeMaterialType = ref('version_announcement')
+
+const audiences = ['网点管理员', '业务员', '内部汇报']
+const materialTypes = [
+  { key: 'version_announcement', label: '版本宣发稿', num: '01' },
+  { key: 'operation_guide', label: '网点操作指引', num: '02' },
+  { key: 'faq', label: 'FAQ 问答库', num: '03' },
+  { key: 'push_script', label: '行者推送话术', num: '04' },
+  { key: 'poster_script', label: '海报脚本', num: '05' },
+  { key: 'training_outline', label: '培训课件大纲', num: '06' },
+]
+
+const stats = computed(() => {
+  const lines = content.value.split('\n').length
+  const chars = content.value.length
+  return `${chars} 字 · ${lines} 行`
+})
+
+function onFileChange(raw: any) {
+  const list = raw?.fileList || raw
+  if (list && list.length > 0) {
+    file.value = list[0].raw || list[0]
+  }
+}
+
+async function doParse() {
+  if (!title.value) {
+    ElMessage.warning('请输入文档标题')
+    return
+  }
+  if (!content.value && !file.value) {
+    ElMessage.warning('请输入文档正文或上传 .docx 文件')
+    return
+  }
+  loading.value = true
+  try {
+    analysis.value = await parseDocument(title.value, content.value, file.value || undefined)
+    ElMessage.success('解析完成')
+    await doGenerate('version_announcement')
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '解析失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+async function doGenerate(materialType: string) {
+  if (!analysis.value) return
+  activeMaterialType.value = materialType
+  loading.value = true
+  try {
+    currentMaterial.value = await generateMaterial(title.value, analysis.value, audience.value, materialType)
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '生成失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+async function doGenerateAll() {
+  if (!analysis.value) return
+  loading.value = true
+  try {
+    const result = await generateAllMaterials(title.value, analysis.value, audience.value)
+    allMaterials.value = result.materials
+    ElMessage.success('全部物料已生成')
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '生成失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+function copyContent() {
+  if (!currentMaterial.value) return
+  navigator.clipboard.writeText(currentMaterial.value.content)
+  ElMessage.success('已复制')
+}
+
+function downloadCurrent() {
+  if (!currentMaterial.value) return
+  const blob = new Blob([currentMaterial.value.content], { type: 'text/markdown' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${currentMaterial.value.title}.md`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+function renderMarkdown(md: string) {
+  return marked(md)
+}
+</script>
+
+<template>
+  <div class="page">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon">+</div>
+        <div>
+          <h1 class="brand-title">AI 运营物料智能生成助手</h1>
+          <p class="brand-subtitle">POC 概念验证：输入版本迭代文档，一键产出六类推广物料初稿</p>
+        </div>
+      </div>
+
+      <div class="step-badge">1</div>
+      <h2 class="step-title">输入文档</h2>
+
+      <el-input v-model="title" placeholder="请输入文档标题" class="input-title" />
+
+      <el-upload
+        drag
+        :auto-upload="false"
+        :show-file-list="false"
+        accept=".docx"
+        class="uploader"
+        @change="onFileChange"
+      >
+        <el-icon class="upload-icon"><Upload /></el-icon>
+        <div class="upload-text">
+          <span class="upload-link">点击或拖拽上传文档</span>
+          <span>支持 .docx，也可直接粘贴正文</span>
+        </div>
+        <div v-if="file" class="upload-file">{{ file.name }}</div>
+      </el-upload>
+
+      <el-input
+        v-model="content"
+        type="textarea"
+        :rows="16"
+        placeholder="粘贴产品文档、版本迭代说明等文本"
+        class="content-input"
+      />
+
+      <div class="stats">{{ stats }}</div>
+
+      <el-button type="primary" :loading="loading" class="parse-btn" @click="doParse">
+        <el-icon><Search /></el-icon>
+        重新解析文档
+      </el-button>
+      <p class="parse-tip">解析结果可逐条勾选，未勾选的内容不会进入物料</p>
+    </aside>
+
+    <main class="main">
+      <section v-show="!analysisCollapsed" class="section analysis-section">
+        <div class="section-header">
+          <div class="section-title">
+            <span class="step-badge-inline">2</span>
+            <span>AI 解析结果</span>
+            <span v-if="analysis" class="section-status">解析完成</span>
+          </div>
+          <el-button text @click="analysisCollapsed = !analysisCollapsed">
+            {{ analysisCollapsed ? '展开' : '收缩' }}
+          </el-button>
+        </div>
+
+        <div v-if="analysis" class="analysis-grid">
+          <el-card class="analysis-card" shadow="never">
+            <div class="card-title">
+              <el-icon color="#7b2cbf"><CircleCheck /></el-icon>
+              <span>功能点 · 新增</span>
+              <span class="card-count">{{ analysis['新增功能'].length }}</span>
+            </div>
+            <ul class="card-list">
+              <li v-for="(item, idx) in analysis['新增功能']" :key="'new-' + idx">
+                <el-checkbox checked>{{ item }}</el-checkbox>
+              </li>
+            </ul>
+          </el-card>
+
+          <el-card class="analysis-card" shadow="never">
+            <div class="card-title">
+              <el-icon color="#7b2cbf"><CircleCheck /></el-icon>
+              <span>变更与优化</span>
+              <span class="card-count">{{ analysis['变更与优化'].length }}</span>
+            </div>
+            <ul class="card-list">
+              <li v-for="(item, idx) in analysis['变更与优化']" :key="'opt-' + idx">
+                <el-checkbox checked>{{ item }}</el-checkbox>
+              </li>
+            </ul>
+          </el-card>
+
+          <el-card class="analysis-card" shadow="never">
+            <div class="card-title">
+              <el-icon color="#7b2cbf"><CircleCheck /></el-icon>
+              <span>注意事项</span>
+              <span class="card-count">{{ analysis['注意事项'].length }}</span>
+            </div>
+            <ul class="card-list">
+              <li v-for="(item, idx) in analysis['注意事项']" :key="'note-' + idx">
+                <el-checkbox checked>{{ item }}</el-checkbox>
+              </li>
+            </ul>
+          </el-card>
+
+          <el-card class="analysis-card warning" shadow="never">
+            <div class="card-title">
+              <el-icon color="#e6a23c"><Warning /></el-icon>
+              <span>风险提示</span>
+              <span class="card-count">{{ analysis['风险提示'].length }}</span>
+            </div>
+            <ul class="card-list">
+              <li v-for="(item, idx) in analysis['风险提示']" :key="'risk-' + idx">
+                <el-checkbox checked>{{ item }}</el-checkbox>
+              </li>
+            </ul>
+          </el-card>
+        </div>
+      </section>
+
+      <section class="section generate-section">
+        <div class="section-header">
+          <div class="section-title">
+            <span class="step-badge-inline">3</span>
+            <span>物料生成</span>
+          </div>
+        </div>
+        <p class="generate-subtitle">切换受众，文案语感自动改写</p>
+
+        <div class="audience-tabs">
+          <el-radio-group v-model="audience" size="large" @change="() => doGenerate(activeMaterialType)">
+            <el-radio-button v-for="a in audiences" :key="a" :label="a">{{ a }}</el-radio-button>
+          </el-radio-group>
+        </div>
+
+        <div class="material-tabs">
+          <el-check-tag
+            v-for="mt in materialTypes"
+            :key="mt.key"
+            :checked="activeMaterialType === mt.key"
+            class="material-tag"
+            @change="doGenerate(mt.key)"
+          >
+            <span class="material-num">{{ mt.num }}</span>
+            {{ mt.label }}
+          </el-check-tag>
+        </div>
+
+        <p class="generate-hint">生成后可直接复制或导出 Markdown</p>
+
+        <div class="material-actions">
+          <el-button :disabled="!currentMaterial" @click="copyContent">
+            <el-icon><DocumentCopy /></el-icon> 复制
+          </el-button>
+          <el-button :disabled="!currentMaterial" @click="downloadCurrent">
+            <el-icon><Download /></el-icon> 下载本页
+          </el-button>
+          <el-button type="primary" :loading="loading" :disabled="!analysis" @click="doGenerateAll">
+            <el-icon><Document /></el-icon> 导出全部
+          </el-button>
+        </div>
+
+        <div v-if="currentMaterial" v-loading="loading" class="material-content">
+          <h2 class="material-title">{{ currentMaterial.title }}</h2>
+          <div class="material-meta">
+            <span>受众：{{ currentMaterial.meta.audience }}</span>
+            <span class="meta-sep">|</span>
+            <span>物料类型：{{ currentMaterial.meta.material_type }}</span>
+            <span class="meta-sep">|</span>
+            <span>生成方式：{{ currentMaterial.meta.generator }}</span>
+          </div>
+          <div class="markdown-body" v-html="renderMarkdown(currentMaterial.content)" />
+        </div>
+
+        <el-empty v-else description="点击「重新解析文档」生成物料" />
+      </section>
+    </main>
+  </div>
+</template>
+
+<style scoped>
+.page { display: flex; min-height: 100vh; background: #f8f9fc; }
+.sidebar { width: 380px; flex-shrink: 0; background: #fff; padding: 24px; border-right: 1px solid #ebeef5; }
+.brand { display: flex; gap: 12px; margin-bottom: 24px; }
+.brand-icon { width: 40px; height: 40px; background: #7b2cbf; color: #fff; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+.brand-title { margin: 0; font-size: 18px; color: #303133; }
+.brand-subtitle { margin: 4px 0 0; font-size: 12px; color: #909399; }
+.step-badge { width: 28px; height: 28px; background: #7b2cbf; color: #fff; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; margin-bottom: 8px; }
+.step-title { margin: 0 0 16px; font-size: 16px; }
+.input-title { margin-bottom: 12px; }
+.uploader { margin-bottom: 12px; }
+.uploader :deep(.el-upload-dragger) { width: 100%; padding: 24px; }
+.upload-icon { font-size: 32px; color: #7b2cbf; margin-bottom: 8px; }
+.upload-text { display: flex; flex-direction: column; font-size: 13px; color: #606266; }
+.upload-link { color: #7b2cbf; font-weight: 500; }
+.upload-file { margin-top: 8px; color: #7b2cbf; font-size: 12px; }
+.content-input { margin-bottom: 8px; }
+.stats { text-align: right; font-size: 12px; color: #909399; margin-bottom: 12px; }
+.parse-btn { width: 100%; margin-bottom: 8px; }
+.parse-tip { font-size: 12px; color: #909399; text-align: center; margin: 0; }
+.main { flex: 1; padding: 24px; overflow-y: auto; }
+.section { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 12px rgba(0,0,0,.04); }
+.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.section-title { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; }
+.step-badge-inline { width: 24px; height: 24px; background: #7b2cbf; color: #fff; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
+.section-status { font-size: 12px; color: #67c23a; font-weight: normal; }
+.analysis-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.analysis-card :deep(.el-card__body) { padding: 16px; }
+.card-title { display: flex; align-items: center; gap: 8px; font-weight: 600; margin-bottom: 12px; }
+.card-count { margin-left: auto; background: #f4e9ff; color: #7b2cbf; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
+.card-list { list-style: none; padding: 0; margin: 0; }
+.card-list li { margin: 6px 0; font-size: 13px; }
+.generate-subtitle { color: #909399; font-size: 13px; margin: -8px 0 16px; }
+.audience-tabs { margin-bottom: 16px; }
+.material-tabs { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+.material-tag { padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.material-tag.is-checked { background: #7b2cbf; color: #fff; }
+.material-num { margin-right: 6px; opacity: .7; }
+.generate-hint { color: #909399; font-size: 12px; margin: 0 0 12px; }
+.material-actions { display: flex; gap: 10px; margin-bottom: 20px; }
+.material-content { border: 1px solid #ebeef5; border-radius: 8px; padding: 24px; background: #fff; }
+.material-title { margin: 0 0 12px; color: #7b2cbf; font-size: 22px; }
+.material-meta { color: #606266; font-size: 13px; margin-bottom: 16px; padding: 12px; background: #fdf6ec; border-left: 4px solid #e6a23c; }
+.meta-sep { margin: 0 8px; color: #c0c4cc; }
+.markdown-body { line-height: 1.8; }
+.markdown-body :deep(h3) { color: #303133; margin-top: 20px; }
+.markdown-body :deep(ul) { padding-left: 20px; }
+.markdown-body :deep(li) { margin: 6px 0; }
+</style>
