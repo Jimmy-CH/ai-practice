@@ -5,6 +5,8 @@ import { marked } from 'marked'
 import type { AnalysisResult, Material } from '../api/client'
 import { parseDocument, generateMaterial, generateAllMaterials } from '../api/client'
 import { saveFromGeneration } from '@/api/materials'
+import { updateAnalysis, type AnalysisUpdatePayload } from '@/api/analysis'
+import { Upload, Search, DocumentCopy, Download, Document, DocumentChecked, Warning, CircleCheck, RefreshRight } from '@element-plus/icons-vue'
 
 const title = ref('网点管家 V3.2.0 版本迭代说明')
 const content = ref(`【版本】网点管家 V3.2.0\n【发布日期】2026-10-20\n【适用范围】全国加盟网点\n\n一、新增功能\n1. 新增「异常件一键上报」功能\n网点扫描异常件后，可在首页直接发起上报，系统自动带出运单号、异常类型、上报时间，无需手工填写。\n\n二、优化与调整\n1. 运单批量导入：导入失败时返回具体失败原因与失败行号，便于网点自行排错。\n2. 消息中心：重要通知将后台自动推送，先在小部分网点试点，逐步放开至 30% 网点。\n3. 在线客服：由「我的」调整至「首页 - 帮助中心」。\n4. 旧版对账单：统一使用新版对账单。\n\n三、注意事项\n1. 本次版本需网点管家升级至 V3.2.0 以上版本方可使用新功能。\n2. 派费日结数据存在 24 小时延迟，以财务系统最终数据为准。\n3. 升级期间请勿强制关闭 App，避免数据同步异常。\n\n四、风险提示\n如出现派费数据缺失，请勿重复提交申诉，等待系统次日补数即可。遇到问题请勿重复操作，及时联系区域客服。`)
@@ -16,6 +18,10 @@ const loading = ref(false)
 const analysisCollapsed = ref(false)
 const audience = ref('网点管理员')
 const activeMaterialType = ref('version_announcement')
+
+const editingCategory = ref<string | null>(null)
+const editingIndex = ref<number>(-1)
+const editingText = ref('')
 
 const audiences = ['网点管理员', '业务员', '内部汇报']
 const materialTypes = [
@@ -52,7 +58,11 @@ async function doParse() {
   loading.value = true
   try {
     analysis.value = await parseDocument(title.value, content.value, file.value || undefined)
-    ElMessage.success('解析完成')
+    if (analysis.value?.analysis_id) {
+      ElMessage.success('解析完成（结果已保存）')
+    } else {
+      ElMessage.success('解析完成')
+    }
     await doGenerate('version_announcement')
   } catch (e: any) {
     ElMessage.error(e.response?.data?.detail || '解析失败')
@@ -122,6 +132,76 @@ async function saveAsDraft() {
   }
 }
 
+function startEdit(category: string, index: number, text: string) {
+  editingCategory.value = category
+  editingIndex.value = index
+  editingText.value = text
+}
+
+function cancelEdit() {
+  editingCategory.value = null
+  editingIndex.value = -1
+  editingText.value = ''
+}
+
+function confirmEdit(category: string) {
+  if (!analysis.value || editingIndex.value < 0) return
+  const key = category as keyof AnalysisResult
+  const list = analysis.value[key] as string[]
+  list[editingIndex.value] = editingText.value
+  cancelEdit()
+}
+
+function deleteItem(category: string, index: number) {
+  if (!analysis.value) return
+  const key = category as keyof AnalysisResult
+  const list = analysis.value[key] as string[]
+  list.splice(index, 1)
+}
+
+function addItem(category: string) {
+  if (!analysis.value) return
+  const key = category as keyof AnalysisResult
+  const list = analysis.value[key] as string[]
+  list.push('新条目')
+  startEdit(category, list.length - 1, '新条目')
+}
+
+async function saveAnalysis() {
+  if (!analysis.value || !analysis.value.analysis_id) {
+    ElMessage.warning('请先解析文档')
+    return
+  }
+  try {
+    const payload: AnalysisUpdatePayload = {
+      new_features: analysis.value['新增功能'],
+      changes: analysis.value['变更与优化'],
+      notices: analysis.value['注意事项'],
+      risks: analysis.value['风险提示'],
+    }
+    analysis.value = await updateAnalysis(analysis.value.analysis_id, payload)
+    ElMessage.success('解析结果已保存')
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '保存失败')
+  }
+}
+
+async function regenerate() {
+  if (!analysis.value) {
+    ElMessage.warning('请先解析文档')
+    return
+  }
+  loading.value = true
+  try {
+    currentMaterial.value = await generateMaterial(title.value, analysis.value, audience.value, activeMaterialType.value)
+    ElMessage.success('已重新生成')
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '重新生成失败')
+  } finally {
+    loading.value = false
+  }
+}
+
 function renderMarkdown(md: string) {
   return marked(md)
 }
@@ -173,6 +253,9 @@ function renderMarkdown(md: string) {
         <el-icon><Search /></el-icon>
         重新解析文档
       </el-button>
+      <el-button :disabled="!analysis" class="save-analysis-btn" @click="saveAnalysis">
+        <el-icon><DocumentChecked /></el-icon> 保存解析结果
+      </el-button>
       <p class="parse-tip">解析结果可逐条勾选，未勾选的内容不会进入物料</p>
     </aside>
 
@@ -196,11 +279,23 @@ function renderMarkdown(md: string) {
               <span>功能点 · 新增</span>
               <span class="card-count">{{ analysis['新增功能'].length }}</span>
             </div>
-            <ul class="card-list">
-              <li v-for="(item, idx) in analysis['新增功能']" :key="'new-' + idx">
-                <el-checkbox checked>{{ item }}</el-checkbox>
+            <ul class="card-list editable-list">
+              <li v-for="(item, idx) in analysis['新增功能']" :key="'new-' + idx" class="edit-row">
+                <template v-if="editingCategory === '新增功能' && editingIndex === idx">
+                  <el-input v-model="editingText" size="small" @keyup.enter="confirmEdit('新增功能')" />
+                  <el-button text size="small" @click="confirmEdit('新增功能')">确认</el-button>
+                  <el-button text size="small" @click="cancelEdit">取消</el-button>
+                </template>
+                <template v-else>
+                  <el-checkbox checked>{{ item }}</el-checkbox>
+                  <span class="row-actions">
+                    <el-button text size="small" @click="startEdit('新增功能', idx, item)">编辑</el-button>
+                    <el-button text size="small" type="danger" @click="deleteItem('新增功能', idx)">删除</el-button>
+                  </span>
+                </template>
               </li>
             </ul>
+            <el-button text size="small" class="add-btn" @click="addItem('新增功能')">+ 添加条目</el-button>
           </el-card>
 
           <el-card class="analysis-card" shadow="never">
@@ -209,11 +304,23 @@ function renderMarkdown(md: string) {
               <span>变更与优化</span>
               <span class="card-count">{{ analysis['变更与优化'].length }}</span>
             </div>
-            <ul class="card-list">
-              <li v-for="(item, idx) in analysis['变更与优化']" :key="'opt-' + idx">
-                <el-checkbox checked>{{ item }}</el-checkbox>
+            <ul class="card-list editable-list">
+              <li v-for="(item, idx) in analysis['变更与优化']" :key="'opt-' + idx" class="edit-row">
+                <template v-if="editingCategory === '变更与优化' && editingIndex === idx">
+                  <el-input v-model="editingText" size="small" @keyup.enter="confirmEdit('变更与优化')" />
+                  <el-button text size="small" @click="confirmEdit('变更与优化')">确认</el-button>
+                  <el-button text size="small" @click="cancelEdit">取消</el-button>
+                </template>
+                <template v-else>
+                  <el-checkbox checked>{{ item }}</el-checkbox>
+                  <span class="row-actions">
+                    <el-button text size="small" @click="startEdit('变更与优化', idx, item)">编辑</el-button>
+                    <el-button text size="small" type="danger" @click="deleteItem('变更与优化', idx)">删除</el-button>
+                  </span>
+                </template>
               </li>
             </ul>
+            <el-button text size="small" class="add-btn" @click="addItem('变更与优化')">+ 添加条目</el-button>
           </el-card>
 
           <el-card class="analysis-card" shadow="never">
@@ -222,11 +329,23 @@ function renderMarkdown(md: string) {
               <span>注意事项</span>
               <span class="card-count">{{ analysis['注意事项'].length }}</span>
             </div>
-            <ul class="card-list">
-              <li v-for="(item, idx) in analysis['注意事项']" :key="'note-' + idx">
-                <el-checkbox checked>{{ item }}</el-checkbox>
+            <ul class="card-list editable-list">
+              <li v-for="(item, idx) in analysis['注意事项']" :key="'note-' + idx" class="edit-row">
+                <template v-if="editingCategory === '注意事项' && editingIndex === idx">
+                  <el-input v-model="editingText" size="small" @keyup.enter="confirmEdit('注意事项')" />
+                  <el-button text size="small" @click="confirmEdit('注意事项')">确认</el-button>
+                  <el-button text size="small" @click="cancelEdit">取消</el-button>
+                </template>
+                <template v-else>
+                  <el-checkbox checked>{{ item }}</el-checkbox>
+                  <span class="row-actions">
+                    <el-button text size="small" @click="startEdit('注意事项', idx, item)">编辑</el-button>
+                    <el-button text size="small" type="danger" @click="deleteItem('注意事项', idx)">删除</el-button>
+                  </span>
+                </template>
               </li>
             </ul>
+            <el-button text size="small" class="add-btn" @click="addItem('注意事项')">+ 添加条目</el-button>
           </el-card>
 
           <el-card class="analysis-card warning" shadow="never">
@@ -235,11 +354,23 @@ function renderMarkdown(md: string) {
               <span>风险提示</span>
               <span class="card-count">{{ analysis['风险提示'].length }}</span>
             </div>
-            <ul class="card-list">
-              <li v-for="(item, idx) in analysis['风险提示']" :key="'risk-' + idx">
-                <el-checkbox checked>{{ item }}</el-checkbox>
+            <ul class="card-list editable-list">
+              <li v-for="(item, idx) in analysis['风险提示']" :key="'risk-' + idx" class="edit-row">
+                <template v-if="editingCategory === '风险提示' && editingIndex === idx">
+                  <el-input v-model="editingText" size="small" @keyup.enter="confirmEdit('风险提示')" />
+                  <el-button text size="small" @click="confirmEdit('风险提示')">确认</el-button>
+                  <el-button text size="small" @click="cancelEdit">取消</el-button>
+                </template>
+                <template v-else>
+                  <el-checkbox checked>{{ item }}</el-checkbox>
+                  <span class="row-actions">
+                    <el-button text size="small" @click="startEdit('风险提示', idx, item)">编辑</el-button>
+                    <el-button text size="small" type="danger" @click="deleteItem('风险提示', idx)">删除</el-button>
+                  </span>
+                </template>
               </li>
             </ul>
+            <el-button text size="small" class="add-btn" @click="addItem('风险提示')">+ 添加条目</el-button>
           </el-card>
         </div>
       </section>
@@ -283,6 +414,9 @@ function renderMarkdown(md: string) {
           </el-button>
           <el-button :disabled="!currentMaterial" @click="saveAsDraft">
             <el-icon><DocumentChecked /></el-icon> 保存为草稿
+          </el-button>
+          <el-button :disabled="!analysis" :loading="loading" @click="regenerate">
+            <el-icon><RefreshRight /></el-icon> 重新生成
           </el-button>
           <el-button type="primary" :loading="loading" :disabled="!analysis" @click="doGenerateAll">
             <el-icon><Document /></el-icon> 导出全部
@@ -355,4 +489,25 @@ function renderMarkdown(md: string) {
 .markdown-body :deep(h3) { color: #303133; margin-top: 20px; }
 .markdown-body :deep(ul) { padding-left: 20px; }
 .markdown-body :deep(li) { margin: 6px 0; }
+.editable-list .edit-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.editable-list .edit-row .el-input {
+  flex: 1;
+}
+.row-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+.add-btn {
+  margin-top: 8px;
+}
+.save-analysis-btn {
+  width: 100%;
+  margin-top: 8px;
+}
 </style>
