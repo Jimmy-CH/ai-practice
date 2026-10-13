@@ -8,6 +8,7 @@ from app.schemas.generation import SaveFromGenerationRequest
 from app.schemas.material import MaterialCreate, MaterialOut
 from app.api.auth import get_current_user
 from app.services import material_service as material_svc
+from app.services import analysis_service as analysis_svc
 from app.services.docx_parser import parse_docx_file
 from app.services.analyzer import analyze_document
 from app.services.material_writer import generate_material, generate_all_materials
@@ -20,12 +21,18 @@ async def parse_endpoint(
     title: str = Form(...),
     content: str = Form(""),
     file: UploadFile | None = File(None),
+    user: UserOut = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     if not content and not file:
         raise HTTPException(status_code=400, detail="请输入文档正文或上传 .docx 文件")
     if file and not file.filename.endswith(".docx"):
         raise HTTPException(status_code=400, detail="仅支持 .docx 格式 Word 文档")
     try:
+        existing = await analysis_svc.get_analysis_by_title(db, user.id, title)
+        if existing is not None:
+            return {"analysis_id": existing.id, "title": title, **existing.to_dict()}
+
         if file:
             suffix = Path(file.filename).suffix
             with NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
@@ -36,7 +43,8 @@ async def parse_endpoint(
         if not content.strip():
             raise HTTPException(status_code=400, detail="文档正文为空")
         result = await analyze_document(title, content)
-        return {"title": title, **result}
+        saved = await analysis_svc.upsert_analysis(db, user.id, title, result)
+        return {"analysis_id": saved.id, "title": title, **saved.to_dict()}
     except HTTPException:
         raise
     except Exception as exc:
