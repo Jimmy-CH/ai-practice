@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     deepseek_api_key: str
     deepseek_base_url: str = "https://api.deepseek.com"
     deepseek_model: str = "deepseek-chat"
+    secret_key: str = "dev-secret-key-change-in-production"
+    access_token_expire_minutes: int = 1440
+    algorithm: str = "HS256"
 
 
 settings = Settings()
