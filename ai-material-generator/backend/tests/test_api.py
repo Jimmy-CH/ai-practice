@@ -18,7 +18,13 @@ def test_parse_text(client, monkeypatch):
     async def fake_analyze(*args, **kwargs):
         return {"新增功能": ["A"], "变更与优化": [], "注意事项": [], "风险提示": []}
     monkeypatch.setattr("app.api.generator.analyze_document", fake_analyze)
-    response = client.post("/api/parse", data={"title": "T", "content": "C"})
+    login = client.post("/api/auth/login", data={"username": "editor", "password": "editor123"})
+    token = login.json()["access_token"]
+    response = client.post(
+        "/api/parse",
+        data={"title": "T", "content": "C"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert response.status_code == 200
     assert response.json()["新增功能"] == ["A"]
 

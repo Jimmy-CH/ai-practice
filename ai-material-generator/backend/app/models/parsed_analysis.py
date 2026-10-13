@@ -30,6 +30,6 @@ class ParsedAnalysis(Base):
             "变更与优化": json.loads(self.changes),
             "注意事项": json.loads(self.notices),
             "风险提示": json.loads(self.risks),
-            "created_at": self.created_at,
-            "updated_at": self.updated_at,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
