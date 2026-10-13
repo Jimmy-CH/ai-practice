@@ -9,6 +9,7 @@ from app.schemas.material import MaterialCreate, MaterialOut
 from app.api.auth import get_current_user
 from app.services import material_service as material_svc
 from app.services import analysis_service as analysis_svc
+from app.services import generated_material_service as gm_svc
 from app.services.docx_parser import parse_docx_file
 from app.services.analyzer import analyze_document
 from app.services.material_writer import generate_material, generate_all_materials
@@ -58,6 +59,7 @@ async def parse_endpoint(
 async def generate_endpoint(
     payload: dict,
     user: UserOut = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     if user.role != "editor":
         raise HTTPException(status_code=403, detail="需要 editor 角色")
@@ -68,7 +70,17 @@ async def generate_endpoint(
     if not analysis or not audience or not material_type:
         raise HTTPException(status_code=400, detail="缺少必要参数")
     try:
-        return await generate_material(title, analysis, audience, material_type)
+        cached = await gm_svc.get_generated_material(
+            db, user.id, title, audience, material_type
+        )
+        if cached is not None:
+            return {**cached.to_dict(), "cached": True}
+
+        result = await generate_material(title, analysis, audience, material_type)
+        await gm_svc.upsert_generated_material(
+            db, user.id, title, audience, material_type, result["content"]
+        )
+        return {**result, "cached": False}
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"生成失败: {exc}") from exc
 
