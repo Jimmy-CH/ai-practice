@@ -1,5 +1,15 @@
 import pytest
 from unittest.mock import patch
+from app.services.material_writer import generate_all_materials
+
+
+@pytest.mark.asyncio
+async def test_generate_all_skips_everything_when_only_types_empty():
+    """only_types 白名单为空集时应全部跳过：generate-all 全命中时不能白烧模型调用。"""
+    with patch("app.services.material_writer.generate_material", side_effect=AssertionError("must not be called")) as mock_generate:
+        result = await generate_all_materials("T", {}, "网点管理员", only_types=set())
+    assert result == []
+    mock_generate.assert_not_called()
 
 
 @pytest.mark.asyncio

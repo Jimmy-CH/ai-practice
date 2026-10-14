@@ -1,3 +1,4 @@
+import hashlib
 import json
 from datetime import datetime
 from sqlalchemy import String, Integer, DateTime, Text, ForeignKey, UniqueConstraint
@@ -10,6 +11,8 @@ def compute_analysis_hash(analysis: dict) -> str:
 
     只取四类要点参与哈希，排除 analysis_id、title 等元数据，
     确保同一套解析内容在不同接口间哈希一致。
+    使用 hashlib 而非内置 hash()：内置 hash 受 PYTHONHASHSEED
+    随机化影响，进程重启后值变化会导致全部缓存失效。
     """
     normalized = json.dumps(
         {
@@ -22,7 +25,7 @@ def compute_analysis_hash(analysis: dict) -> str:
         ensure_ascii=False,
         default=str,
     )
-    return str(hash(normalized))
+    return hashlib.md5(normalized.encode("utf-8")).hexdigest()
 
 
 class GeneratedMaterial(Base):

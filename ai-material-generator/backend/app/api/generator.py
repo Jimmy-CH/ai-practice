@@ -153,6 +153,7 @@ async def generate_all_endpoint(
             else:
                 missing_types.add(material_type)
 
+        # generate_all_materials 的 only_types 为白名单：全命中时 missing_types 为空集，不会发起任何模型调用
         generated = await generate_all_materials(title, analysis, audience, missing_types)
         generated_with_id = []
         for item in generated:

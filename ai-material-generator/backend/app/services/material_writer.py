@@ -109,12 +109,13 @@ async def generate_material(title: str, analysis: dict, audience: str, material_
 
 
 async def generate_all_materials(
-    title: str, analysis: dict, audience: str, skip_types: set[str] | None = None
+    title: str, analysis: dict, audience: str, only_types: set[str] | None = None
 ) -> list[dict]:
-    skip_types = skip_types or set()
+    """并发生成物料。only_types 为待生成的类型白名单：None 表示全部，空集表示不生成。"""
+    types = only_types if only_types is not None else MATERIAL_TYPES.keys()
     tasks = [
         generate_material(title, analysis, audience, material_type)
         for material_type in MATERIAL_TYPES
-        if material_type not in skip_types
+        if material_type in types
     ]
-    return await asyncio.gather(*tasks)
+    return await asyncio.gather(*tasks) if tasks else []
