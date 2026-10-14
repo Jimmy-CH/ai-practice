@@ -1,0 +1,25 @@
+{
+  "version": "2026.10",
+  "terms": [
+    {"term": "订单中心", "aliases": ["order-center", "订单服务"], "note": "统一订单域服务"},
+    {"term": "券叠加", "aliases": ["coupon stack", "stackable", "叠加券"], "note": "多张优惠券组合使用"},
+    {"term": "分片流式写出", "aliases": ["stream write", "streamWrite", "流式导出"], "note": "分页拉取逐片写盘，避免大数据量内存溢出"},
+    {"term": "指数退避", "aliases": ["exponential backoff", "withRetry"], "note": "重试间隔指数增长的容错策略"},
+    {"term": "事件溯源", "aliases": ["event sourcing", "project"], "note": "由事件序列重放推导当前状态"},
+    {"term": "多仓库存", "aliases": ["multi warehouse", "allocateAcross", "跨仓"], "note": "跨多个仓库分配库存"},
+    {"term": "部分退款", "aliases": ["partial refund", "refundPartial"], "note": "按订单明细发起退款"},
+    {"term": "无理由退款窗口", "aliases": ["refund window", "REFUND_WINDOW_DAYS"], "note": "可申请无理由退款的时限"},
+    {"term": "秒杀", "aliases": ["seckill", "flash sale"], "note": "限时抢购场景"},
+    {"term": "超卖", "aliases": ["oversell", "over-sell"], "note": "库存扣减不一致导致售出数量超过库存"},
+    {"term": "幂等", "aliases": ["idempotent", "idempotency"], "note": "重复执行与单次执行结果一致"},
+    {"term": "回调", "aliases": ["callback", "notify"], "note": "第三方异步结果通知"},
+    {"term": "签名校验", "aliases": ["sign verify", "HMAC", "verifyCallback"], "note": "校验请求来源与完整性"},
+    {"term": "会员权益", "aliases": ["benefit", "member level"], "note": "会员等级对应的优惠与特权"},
+    {"term": "实时校验", "aliases": ["realtime verify", "verifyRealtime"], "note": "每次请求实时获取最新数据校验"},
+    {"term": "游标分页", "aliases": ["cursor", "nextCursor"], "note": "基于游标的分页拉取"},
+    {"term": "灰度开关", "aliases": ["feature flag", "featureOn"], "note": "按开关逐步放量"},
+    {"term": "迁移", "aliases": ["migration", "迁移至"], "note": "能力从旧位置搬到新位置"},
+    {"term": "破坏性变更", "aliases": ["breaking change", "breaking"], "note": "不向后兼容的接口或行为变更"},
+    {"term": "回归测试", "aliases": ["regression test"], "note": "验证老功能未被新变更破坏"}
+  ]
+}
