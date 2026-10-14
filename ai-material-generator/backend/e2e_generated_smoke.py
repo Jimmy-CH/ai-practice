@@ -1,4 +1,5 @@
 import httpx
+import time
 from uuid import uuid4
 
 BASE = "http://127.0.0.1:8001"
@@ -14,39 +15,44 @@ def login(username: str, password: str) -> str:
 
 def main():
     token = login("editor", "editor123")
-    analysis = {"新增功能": ["A"], "变更与优化": [], "注意事项": [], "风险提示": []}
     title = f"E2E-{uuid4().hex[:8]}"
 
     with httpx.Client(timeout=CLIENT_TIMEOUT) as client:
-        # 解析文档，后台应一并生成 6 种物料
+        # 解析文档：响应立即返回，物料预热在后台继续生成
         r = client.post(
             f"{BASE}/api/parse",
             data={"title": title, "content": "C"},
             headers={"Authorization": f"Bearer {token}"},
         )
         assert r.status_code == 200
-        print("parse ok")
+        analysis = r.json()  # 后续生成复用解析响应，缓存键与后台预热保持一致
+        print("parse returns immediately ok")
 
-        # 切换物料类型应命中缓存
+        # 预热尚在后台执行时立即请求物料：命中在飞任务或缓存均可，但必须返回有效内容
         r2 = client.post(
             f"{BASE}/api/generate",
             json={"title": title, "analysis": analysis, "audience": "网点管理员", "material_type": "operation_guide"},
             headers={"Authorization": f"Bearer {token}"},
         )
         assert r2.status_code == 200
-        assert r2.json()["cached"] is True
-        print("switch material type uses cache ok")
+        assert r2.json()["content"]
+        print("generate during background preheating returns content ok")
 
-        # 首次生成（另一种物料）应命中缓存
-        r3 = client.post(
-            f"{BASE}/api/generate",
-            json={"title": title, "analysis": analysis, "audience": "网点管理员", "material_type": "version_announcement"},
-            headers={"Authorization": f"Bearer {token}"},
-        )
-        assert r3.status_code == 200
-        assert r3.json()["cached"] is True
+        # 轮询等待后台预热完成：目标物料最终应命中缓存
+        deadline = time.monotonic() + 240
+        while True:
+            r3 = client.post(
+                f"{BASE}/api/generate",
+                json={"title": title, "analysis": analysis, "audience": "网点管理员", "material_type": "version_announcement"},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            assert r3.status_code == 200
+            if r3.json()["cached"] is True:
+                break
+            assert time.monotonic() < deadline, "background pregeneration did not warm cache in time"
+            time.sleep(5)
         gm_id = r3.json()["id"]
-        print("first generate after parse uses cache ok")
+        print("background pregeneration warms cache ok")
 
         # 编辑缓存内容
         r4 = client.put(
