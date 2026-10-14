@@ -585,12 +585,28 @@ function renderMarkdown(md: string) {
 .markdown-body :deep(li) { margin: 6px 0; }
 .editable-list .edit-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   margin-bottom: 6px;
 }
 .editable-list .edit-row .el-input {
   flex: 1;
+}
+.editable-list .edit-row .el-checkbox {
+  flex: 1;
+  min-width: 0;
+  height: auto;
+  white-space: normal;
+  align-items: flex-start;
+  margin-right: 0;
+}
+.editable-list .edit-row .el-checkbox :deep(.el-checkbox__input) {
+  margin-top: 3px;
+}
+.editable-list .edit-row .el-checkbox :deep(.el-checkbox__label) {
+  line-height: 1.5;
+  white-space: normal;
+  word-break: break-word;
 }
 .row-actions {
   margin-left: auto;
