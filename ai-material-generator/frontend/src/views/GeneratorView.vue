@@ -49,6 +49,10 @@ function onFileChange(raw: any) {
   }
 }
 
+function findMaterial(materialType: string): Material | undefined {
+  return allMaterials.value.find(m => m.material_type === materialType)
+}
+
 async function doParse() {
   if (!title.value) {
     ElMessage.warning('请输入文档标题')
@@ -66,7 +70,10 @@ async function doParse() {
     } else {
       ElMessage.success('解析完成')
     }
-    await doGenerate('version_announcement')
+    const result = await generateAllMaterials(title.value, analysis.value, audience.value)
+    allMaterials.value = result.materials
+    activeMaterialType.value = 'version_announcement'
+    currentMaterial.value = findMaterial('version_announcement') || null
   } catch (e: any) {
     ElMessage.error(e.response?.data?.detail || '解析失败')
   } finally {
@@ -77,12 +84,41 @@ async function doParse() {
 async function doGenerate(materialType: string) {
   if (!analysis.value) return
   activeMaterialType.value = materialType
+  const cached = findMaterial(materialType)
+  if (cached) {
+    currentMaterial.value = cached
+    return
+  }
   loading.value = true
   try {
-    currentMaterial.value = await generateMaterial(title.value, analysis.value, audience.value, materialType)
-    if ((currentMaterial.value as any).cached) {
-      ElMessage.success('已使用历史生成结果')
-    }
+    const material = await generateMaterial(title.value, analysis.value, audience.value, materialType)
+    currentMaterial.value = material
+    upsertLocalMaterial(material)
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '生成失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+function upsertLocalMaterial(material: Material) {
+  const idx = allMaterials.value.findIndex(m => m.material_type === material.material_type)
+  if (idx >= 0) {
+    allMaterials.value[idx] = material
+  } else {
+    allMaterials.value.push(material)
+  }
+}
+
+async function onAudienceChange() {
+  if (!analysis.value) return
+  allMaterials.value = []
+  currentMaterial.value = null
+  loading.value = true
+  try {
+    const result = await generateAllMaterials(title.value, analysis.value, audience.value)
+    allMaterials.value = result.materials
+    currentMaterial.value = findMaterial(activeMaterialType.value) || null
   } catch (e: any) {
     ElMessage.error(e.response?.data?.detail || '生成失败')
   } finally {
@@ -92,6 +128,10 @@ async function doGenerate(materialType: string) {
 
 async function doGenerateAll() {
   if (!analysis.value) return
+  if (allMaterials.value.length === materialTypes.length) {
+    ElMessage.success('全部物料已生成')
+    return
+  }
   loading.value = true
   try {
     const result = await generateAllMaterials(title.value, analysis.value, audience.value)
@@ -158,6 +198,7 @@ async function saveMaterialEdit() {
     const updated = await updateGeneratedMaterial(currentMaterial.value.id, editingMaterialContent.value)
     currentMaterial.value.content = updated.content
     currentMaterial.value.cached = true
+    upsertLocalMaterial(currentMaterial.value)
     isEditingMaterial.value = false
     ElMessage.success('物料内容已保存')
   } catch (e: any) {
@@ -226,12 +267,10 @@ async function regenerate() {
   }
   loading.value = true
   try {
-    currentMaterial.value = await generateMaterial(title.value, analysis.value, audience.value, activeMaterialType.value)
-    if ((currentMaterial.value as any).cached) {
-      ElMessage.success('已使用历史生成结果')
-    } else {
-      ElMessage.success('已重新生成')
-    }
+    const material = await generateMaterial(title.value, analysis.value, audience.value, activeMaterialType.value)
+    currentMaterial.value = material
+    upsertLocalMaterial(material)
+    ElMessage.success('已重新生成')
   } catch (e: any) {
     ElMessage.error(e.response?.data?.detail || '重新生成失败')
   } finally {
@@ -422,7 +461,7 @@ function renderMarkdown(md: string) {
         <p class="generate-subtitle">切换受众，文案语感自动改写</p>
 
         <div class="audience-tabs">
-          <el-radio-group v-model="audience" size="large" @change="() => doGenerate(activeMaterialType)">
+          <el-radio-group v-model="audience" size="large" @change="onAudienceChange">
             <el-radio-button v-for="a in audiences" :key="a" :label="a">{{ a }}</el-radio-button>
           </el-radio-group>
         </div>
