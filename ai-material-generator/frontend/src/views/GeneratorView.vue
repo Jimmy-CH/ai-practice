@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { marked } from 'marked'
 import type { AnalysisResult, Material } from '../api/client'
 import { parseDocument, generateMaterial, generateAllMaterials, updateGeneratedMaterial } from '../api/client'
 import { saveFromGeneration } from '@/api/materials'
 import { updateAnalysis, type AnalysisUpdatePayload } from '@/api/analysis'
+import { renderMarkdown } from '@/utils/markdown'
 import { Upload, Search, DocumentCopy, Download, Document, DocumentChecked, Warning, CircleCheck, RefreshRight, Edit } from '@element-plus/icons-vue'
 
 const title = ref('网点管家 V3.2.0 版本迭代说明')
@@ -279,10 +279,6 @@ async function regenerate() {
   } finally {
     loading.value = false
   }
-}
-
-function renderMarkdown(md: string) {
-  return marked(md)
 }
 </script>
 

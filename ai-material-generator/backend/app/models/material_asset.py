@@ -17,5 +17,7 @@ class MaterialAsset(Base):
     source_title: Mapped[str] = mapped_column(String(255), default="", nullable=False)
     analysis: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
     review_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_by: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

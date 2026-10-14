@@ -30,6 +30,9 @@ class MaterialOut(BaseModel):
     source_title: str
     analysis: str
     review_comment: str | None
+    reviewed_by: int | None = None
+    reviewed_at: datetime | None = None
+    reviewer_username: str | None = None
     created_at: datetime
     updated_at: datetime
 
