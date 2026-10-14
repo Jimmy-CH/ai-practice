@@ -10,11 +10,12 @@ async def test_get_analysis(client, editor_token):
         "注意事项": ["需升级"],
         "风险提示": ["数据延迟"],
     }):
-        await client.post(
-            "/api/parse",
-            data={"title": "版本说明", "content": "正文"},
-            headers={"Authorization": f"Bearer {editor_token}"},
-        )
+        with patch("app.api.generator.generate_all_materials", return_value=[]):
+            await client.post(
+                "/api/parse",
+                data={"title": "版本说明", "content": "正文"},
+                headers={"Authorization": f"Bearer {editor_token}"},
+            )
     r = await client.get(
         "/api/analyses/版本说明",
         headers={"Authorization": f"Bearer {editor_token}"},
@@ -31,11 +32,12 @@ async def test_update_analysis(client, editor_token):
         "注意事项": ["需升级"],
         "风险提示": ["数据延迟"],
     }):
-        parsed = await client.post(
-            "/api/parse",
-            data={"title": "版本说明", "content": "正文"},
-            headers={"Authorization": f"Bearer {editor_token}"},
-        )
+        with patch("app.api.generator.generate_all_materials", return_value=[]):
+            parsed = await client.post(
+                "/api/parse",
+                data={"title": "版本说明", "content": "正文"},
+                headers={"Authorization": f"Bearer {editor_token}"},
+            )
     analysis_id = parsed.json()["analysis_id"]
     r = await client.put(
         f"/api/analyses/{analysis_id}",
@@ -54,11 +56,12 @@ async def test_update_analysis_forbidden_for_other_user(client, editor_token, re
         "注意事项": ["需升级"],
         "风险提示": ["数据延迟"],
     }):
-        parsed = await client.post(
-            "/api/parse",
-            data={"title": "版本说明", "content": "正文"},
-            headers={"Authorization": f"Bearer {editor_token}"},
-        )
+        with patch("app.api.generator.generate_all_materials", return_value=[]):
+            parsed = await client.post(
+                "/api/parse",
+                data={"title": "版本说明", "content": "正文"},
+                headers={"Authorization": f"Bearer {editor_token}"},
+            )
     analysis_id = parsed.json()["analysis_id"]
     r = await client.put(
         f"/api/analyses/{analysis_id}",

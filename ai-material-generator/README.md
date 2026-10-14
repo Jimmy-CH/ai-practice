@@ -19,7 +19,7 @@
 
 ## 技术栈
 
-- 后端：Python 3.11、FastAPI、SQLAlchemy 2.0 async、aiosqlite、python-docx、httpx、passlib、python-jose、DeepSeek API
+- 后端：Python 3.11、FastAPI、SQLAlchemy 2.0 async、aiosqlite、python-docx、httpx、requests、passlib、python-jose、星语/Xingyu 或 DeepSeek API
 - 前端：Vue 3 + TypeScript + Vite + Element Plus + Pinia + Vue Router + Axios + marked
 
 ## 启动
@@ -31,7 +31,7 @@ cd backend
 python -m venv venv
 .\venv\Scripts\python.exe -m pip install -r requirements.txt
 copy .env.example .env
-# 编辑 .env，填入 DEEPSEEK_API_KEY
+# 编辑 .env，默认使用星语 API；如需切回 DeepSeek，设置 LLM_PROVIDER=deepseek 并填入 DEEPSEEK_API_KEY
 .\venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
@@ -86,6 +86,10 @@ npm run build
 ## 环境变量
 
 ```env
+# 默认使用星语 API；设置为 deepseek 时需提供以下 Key
+LLM_PROVIDER=xingyu
+
+# 仅当 LLM_PROVIDER=deepseek 时必填
 DEEPSEEK_API_KEY=sk-xxx
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-chat

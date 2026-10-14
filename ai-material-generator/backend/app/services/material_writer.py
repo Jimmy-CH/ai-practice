@@ -1,6 +1,7 @@
 import asyncio
 import httpx
 from app.config import settings
+from app.services.xingyu_api import generate_by_xingyu
 
 
 MATERIAL_TYPES = {
@@ -33,7 +34,9 @@ GENERATE_PROMPT = """你是一名资深运营文案。请根据以下版本迭�
 请直接输出正文。"""
 
 
-async def _chat(messages: list[dict]) -> str:
+async def _chat_deepseek(messages: list[dict]) -> str:
+    if not settings.deepseek_api_key:
+        raise RuntimeError("未配置 DeepSeek API Key")
     async with httpx.AsyncClient(timeout=120) as client:
         response = await client.post(
             f"{settings.deepseek_base_url}/chat/completions",
@@ -46,6 +49,14 @@ async def _chat(messages: list[dict]) -> str:
         )
         response.raise_for_status()
         return response.json()["choices"][0]["message"]["content"]
+
+
+async def _chat(messages: list[dict]) -> str:
+    if settings.llm_provider == "xingyu":
+        system_prompt = "你是一名资深运营文案。"
+        user_prompt = messages[-1]["content"] if messages else ""
+        return await generate_by_xingyu(system_prompt, user_prompt)
+    return await _chat_deepseek(messages)
 
 
 def _format_list(items: list[str]) -> str:
@@ -81,7 +92,7 @@ async def generate_material(title: str, analysis: dict, audience: str, material_
         "meta": {
             "audience": audience,
             "material_type": MATERIAL_TYPES[material_type],
-            "generator": "DeepSeek",
+            "generator": "Xingyu" if settings.llm_provider == "xingyu" else "DeepSeek",
         },
     }
 
