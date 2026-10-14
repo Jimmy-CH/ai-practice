@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch
-from app.services.material_writer import generate_all_materials
+from app.services.material_writer import MATERIAL_TYPES, generate_all_materials
 
 
 @pytest.mark.asyncio
@@ -70,6 +70,45 @@ async def test_generate_uses_cache(client, editor_token):
     assert r.json()["content"] == "C"
     assert r.json()["cached"] is True
     mock_generate.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_generate_all_hits_cache_right_after_parse(client, editor_token):
+    """复现真实用户路径：parse 预生成后前端立即回调 generate-all，
+    必须全部命中缓存，不允许追加任何模型调用（回归：哈希不一致导致 30s 全量重生成）。"""
+    async def fake_analyze(*args, **kwargs):
+        return {"新增功能": ["A"], "变更与优化": [], "注意事项": [], "风险提示": []}
+
+    async def fake_generate(title, analysis, audience, material_type):
+        return {
+            "title": f"R-{material_type}",
+            "content": f"C-{material_type}",
+            "audience": audience,
+            "material_type": material_type,
+            "meta": {"audience": audience, "material_type": material_type, "generator": "DeepSeek"},
+        }
+
+    with patch("app.api.generator.analyze_document", fake_analyze):
+        with patch("app.services.material_writer.generate_material", side_effect=fake_generate) as mock_generate:
+            r = await client.post(
+                "/api/parse",
+                data={"title": "T", "content": "C"},
+                headers={"Authorization": f"Bearer {editor_token}"},
+            )
+            assert r.status_code == 200
+
+            # 与前端 doParse 一致：直接把 parse 响应对象作为 analysis 回传
+            r2 = await client.post(
+                "/api/generate-all",
+                json={"title": "T", "analysis": r.json(), "audience": "网点管理员"},
+                headers={"Authorization": f"Bearer {editor_token}"},
+            )
+    assert r2.status_code == 200
+    materials = r2.json()["materials"]
+    assert len(materials) == len(MATERIAL_TYPES)
+    assert all(m["cached"] is True for m in materials)
+    # parse 预生成恰好 6 次调用；generate-all 全命中不得追加任何调用
+    assert mock_generate.call_count == len(MATERIAL_TYPES)
 
 
 @pytest.mark.asyncio
