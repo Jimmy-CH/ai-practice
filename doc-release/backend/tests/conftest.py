@@ -57,3 +57,16 @@ def stub_llm(monkeypatch):
             "highlights": [], "confidence": 0.9}, ensure_ascii=False)
 
     monkeypatch.setattr(llm_service, "_chat", fake_chat)
+
+
+@pytest.fixture(autouse=True)
+def archive_root(session_maker, tmp_path_factory):
+    """把 pipeline 的会话工厂指向测试库、归档根目录指向临时目录（每个测试隔离）。"""
+    from app.services import pipeline_service
+
+    pipeline_service.set_session_factory(session_maker)
+    root = tmp_path_factory.mktemp("archive")
+    pipeline_service.set_archive_root(root)
+    pipeline_service._live_states.clear()
+    pipeline_service._cancelled.clear()
+    return root
