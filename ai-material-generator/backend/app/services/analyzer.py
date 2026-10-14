@@ -1,7 +1,12 @@
 import json
+import logging
+import time
 import httpx
 from app.config import settings
 from app.services.xingyu_api import generate_by_xingyu
+
+
+logger = logging.getLogger("app.services.analyzer")
 
 
 PARSE_PROMPT = """你是一名资深运营文档分析师。请从下面的版本迭代文档中提取四类信息，并以 JSON 格式返回。
@@ -53,7 +58,10 @@ async def _chat(messages: list[dict]) -> str:
 
 async def analyze_document(title: str, content: str) -> dict:
     prompt = PARSE_PROMPT.format(title=title, content=content)
+    start = time.perf_counter()
     raw = await _chat([{"role": "user", "content": prompt}])
+    duration_ms = (time.perf_counter() - start) * 1000
+    logger.info(f"[{settings.llm_provider}] analyze_document '{title}' duration={duration_ms:.2f}ms, response_length={len(raw)}")
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as exc:

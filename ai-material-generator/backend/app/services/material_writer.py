@@ -1,7 +1,12 @@
 import asyncio
+import logging
+import time
 import httpx
 from app.config import settings
 from app.services.xingyu_api import generate_by_xingyu
+
+
+logger = logging.getLogger("app.services.material_writer")
 
 
 MATERIAL_TYPES = {
@@ -83,7 +88,13 @@ async def generate_material(title: str, analysis: dict, audience: str, material_
         注意事项=_format_list(analysis.get("注意事项", [])),
         风险提示=_format_list(analysis.get("风险提示", [])),
     )
+    start = time.perf_counter()
     content = await _chat([{"role": "user", "content": prompt}])
+    duration_ms = (time.perf_counter() - start) * 1000
+    logger.info(
+        f"[{settings.llm_provider}] generate_material title='{title}' audience='{audience}' "
+        f"type='{material_type}' duration={duration_ms:.2f}ms response_length={len(content)}"
+    )
     return {
         "title": _extract_title(content, title),
         "content": content,
