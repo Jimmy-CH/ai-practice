@@ -40,6 +40,10 @@ def set_archive_root(root: Path) -> None:
     _archive_root = Path(root)
 
 
+def get_archive_root() -> Path:
+    return _archive_root
+
+
 class RunEventBus:
     def __init__(self) -> None:
         self._subs: dict[str, set[asyncio.Queue]] = {}

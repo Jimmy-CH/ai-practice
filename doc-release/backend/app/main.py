@@ -3,14 +3,16 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 
+import seed_sample_repo
 from app import models  # noqa: F401  确保模型在 metadata 中注册
+from app.api import repos as repos_api
+from app.api import runs as runs_api
 from app.config import settings
 from app.database import AsyncSessionLocal, Base, engine
 from app.models import Repo
-
-import seed_sample_repo
 
 
 async def _ensure_sample_repo() -> None:
@@ -35,7 +37,19 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="释文 DocRelease", lifespan=lifespan)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origin_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.get("/api/health")
 async def health() -> dict:
     return {"status": "ok"}
+
+
+app.include_router(repos_api.router)
+app.include_router(runs_api.router)
