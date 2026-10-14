@@ -38,3 +38,22 @@ async def client(session_maker):
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def stub_llm(monkeypatch):
+    """默认把所有测试的 LLM 调用替换为固定 JSON，保持离线可跑；
+    单个测试可用自己的 monkeypatch 覆盖（后设置的生效）。"""
+    import json as _json
+
+    from app.services import llm_service
+
+    async def fake_chat(system_prompt: str, user_prompt: str) -> str:
+        return _json.dumps({
+            "features": [{"tag": "新增功能", "risk": "低", "breaking": False,
+                          "title": "自动生成的功能点", "biz": "业务说明", "tech": "技术说明",
+                          "visible": "无", "scope": "测试模块", "acceptance": "可验收",
+                          "action": "无需操作", "role": "研发", "paths": []}],
+            "highlights": [], "confidence": 0.9}, ensure_ascii=False)
+
+    monkeypatch.setattr(llm_service, "_chat", fake_chat)
