@@ -292,12 +292,20 @@ function cancelMaterialEdit() {
 }
 
 async function saveMaterialEdit() {
-  if (!currentMaterial.value || !currentMaterial.value.id) {
-    ElMessage.warning('当前物料未生成或不存在缓存记录')
-    return
-  }
+  if (!currentMaterial.value) return
   try {
-    const updated = await updateGeneratedMaterial(currentMaterial.value.id, editingMaterialContent.value)
+    let materialId = currentMaterial.value.id
+    if (!materialId && analysis.value) {
+      // 兼容历史响应缺少缓存记录 id 的情况：重新获取一次以补齐（缓存命中时即时返回）
+      const fresh = await generateMaterial(title.value, analysis.value, audience.value, activeMaterialType.value)
+      materialId = fresh.id
+      currentMaterial.value.id = fresh.id
+    }
+    if (!materialId) {
+      ElMessage.warning('当前物料未生成或不存在缓存记录')
+      return
+    }
+    const updated = await updateGeneratedMaterial(materialId, editingMaterialContent.value)
     currentMaterial.value.content = updated.content
     currentMaterial.value.cached = true
     upsertLocalMaterial(currentMaterial.value)

@@ -54,6 +54,19 @@ def main():
         gm_id = r3.json()["id"]
         print("background pregeneration warms cache ok")
 
+        # 全量生成（真实用户路径：解析后前端立即回调 generate-all）
+        # 回归：无论命中缓存与否，每项都必须携带缓存记录 id，否则前端编辑保存无从发起 PUT
+        r_all = client.post(
+            f"{BASE}/api/generate-all",
+            json={"title": title, "analysis": analysis, "audience": "网点管理员"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert r_all.status_code == 200
+        items = r_all.json()["materials"]
+        assert len(items) == 6
+        assert all(m.get("id") for m in items), "generate-all items must carry generated material id"
+        print("generate-all returns items with id ok")
+
         # 编辑缓存内容
         r4 = client.put(
             f"{BASE}/api/generated-materials/{gm_id}",

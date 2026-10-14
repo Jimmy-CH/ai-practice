@@ -198,10 +198,8 @@ async def generate_all_endpoint(
             )
             if cached is not None:
                 cached_materials[material_type] = {
+                    **cached.to_dict(),
                     "title": title,
-                    "content": cached.content,
-                    "audience": audience,
-                    "material_type": material_type,
                     "meta": {
                         "audience": audience,
                         "material_type": MATERIAL_TYPES[material_type],

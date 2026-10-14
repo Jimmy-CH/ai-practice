@@ -107,6 +107,8 @@ async def test_generate_all_hits_cache_right_after_parse(client, editor_token):
     materials = r2.json()["materials"]
     assert len(materials) == len(MATERIAL_TYPES)
     assert all(m["cached"] is True for m in materials)
+    # 回归：命中缓存的物料项必须带缓存记录 id，否则前端编辑保存无从发起 PUT
+    assert all(isinstance(m.get("id"), int) for m in materials)
     # parse 预生成恰好 6 次调用；generate-all 全命中不得追加任何调用
     assert mock_generate.call_count == len(MATERIAL_TYPES)
 
@@ -138,3 +140,6 @@ async def test_generate_all_caches_and_reuses(client, editor_token):
         )
         assert r2.status_code == 200
         assert mock_generate.call_count == first_count
+        # 未命中与命中两条返回路径都必须携带缓存 id
+        assert all(isinstance(m.get("id"), int) for m in r.json()["materials"])
+        assert all(isinstance(m.get("id"), int) for m in r2.json()["materials"])
