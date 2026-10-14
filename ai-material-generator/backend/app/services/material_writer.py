@@ -8,6 +8,9 @@ from app.services.xingyu_api import generate_by_xingyu
 
 logger = logging.getLogger("app.services.material_writer")
 
+# 在飞生成任务注册表：key -> Task，用于后台预热与用户请求撞车时复用同一任务
+_inflight_tasks: dict[tuple, asyncio.Task] = {}
+
 
 MATERIAL_TYPES = {
     "version_announcement": "版本宣发稿",
@@ -108,14 +111,45 @@ async def generate_material(title: str, analysis: dict, audience: str, material_
     }
 
 
+async def generate_material_deduped(key: tuple, factory) -> dict:
+    """同 key 的在飞生成任务直接复用，避免同一物料并发调用两次 LLM。
+
+    factory 为无参 callable，返回协程；仅在首次注册时才会被调用。
+    任务完成后（无论成败）清除注册，允许后续重试。
+    """
+    existing = _inflight_tasks.get(key)
+    if existing is not None:
+        return await existing
+    task = asyncio.create_task(factory())
+    _inflight_tasks[key] = task
+    try:
+        return await task
+    finally:
+        if _inflight_tasks.get(key) is task:
+            _inflight_tasks.pop(key, None)
+
+
 async def generate_all_materials(
-    title: str, analysis: dict, audience: str, only_types: set[str] | None = None
+    title: str,
+    analysis: dict,
+    audience: str,
+    only_types: set[str] | None = None,
+    dedup_keys: dict[str, tuple] | None = None,
 ) -> list[dict]:
-    """并发生成物料。only_types 为待生成的类型白名单：None 表示全部，空集表示不生成。"""
+    """并发生成物料。only_types 为待生成的类型白名单：None 表示全部，空集表示不生成。
+
+    dedup_keys 提供类型 -> 去重键映射；提供时同 key 的在飞任务会被复用。
+    """
     types = only_types if only_types is not None else MATERIAL_TYPES.keys()
-    tasks = [
-        generate_material(title, analysis, audience, material_type)
-        for material_type in MATERIAL_TYPES
-        if material_type in types
-    ]
+    keys = dedup_keys or {}
+
+    async def run(material_type: str) -> dict:
+        key = keys.get(material_type)
+        if key is None:
+            return await generate_material(title, analysis, audience, material_type)
+        return await generate_material_deduped(
+            key, lambda: generate_material(title, analysis, audience, material_type)
+        )
+
+    tasks = [run(material_type) for material_type in MATERIAL_TYPES if material_type in types]
     return await asyncio.gather(*tasks) if tasks else []

@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 
 @pytest.mark.asyncio
@@ -10,7 +10,7 @@ async def test_get_analysis(client, editor_token):
         "注意事项": ["需升级"],
         "风险提示": ["数据延迟"],
     }):
-        with patch("app.api.generator.generate_all_materials", return_value=[]):
+        with patch("app.api.generator.pregenerate_materials", new_callable=AsyncMock):
             await client.post(
                 "/api/parse",
                 data={"title": "版本说明", "content": "正文"},
@@ -32,7 +32,7 @@ async def test_update_analysis(client, editor_token):
         "注意事项": ["需升级"],
         "风险提示": ["数据延迟"],
     }):
-        with patch("app.api.generator.generate_all_materials", return_value=[]):
+        with patch("app.api.generator.pregenerate_materials", new_callable=AsyncMock):
             parsed = await client.post(
                 "/api/parse",
                 data={"title": "版本说明", "content": "正文"},
@@ -56,7 +56,7 @@ async def test_update_analysis_forbidden_for_other_user(client, editor_token, re
         "注意事项": ["需升级"],
         "风险提示": ["数据延迟"],
     }):
-        with patch("app.api.generator.generate_all_materials", return_value=[]):
+        with patch("app.api.generator.pregenerate_materials", new_callable=AsyncMock):
             parsed = await client.post(
                 "/api/parse",
                 data={"title": "版本说明", "content": "正文"},
