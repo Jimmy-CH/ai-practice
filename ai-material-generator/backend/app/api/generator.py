@@ -13,6 +13,7 @@ from app.services import generated_material_service as gm_svc
 from app.services.docx_parser import parse_docx_file
 from app.services.analyzer import analyze_document
 from app.services.material_writer import generate_material, generate_all_materials, MATERIAL_TYPES
+from app.models.generated_material import compute_analysis_hash
 
 router = APIRouter()
 
@@ -49,10 +50,11 @@ async def parse_endpoint(
 
         # 首次解析时一并生成当前受众的全部 6 种物料并缓存
         try:
+            analysis_hash = compute_analysis_hash(result)
             materials = await generate_all_materials(title, result, audience)
             for item in materials:
                 await gm_svc.upsert_generated_material(
-                    db, user.id, title, audience, item["material_type"], item["content"]
+                    db, user.id, title, audience, item["material_type"], analysis_hash, item["content"]
                 )
         except Exception:
             # 物料生成失败不阻塞解析结果返回，前端可在切换时按需重新生成
@@ -82,16 +84,21 @@ async def generate_endpoint(
     material_type = payload.get("material_type", "")
     if not analysis or not audience or not material_type:
         raise HTTPException(status_code=400, detail="缺少必要参数")
+    analysis_hash = compute_analysis_hash(analysis)
     try:
         cached = await gm_svc.get_generated_material(
-            db, user.id, title, audience, material_type
+            db, user.id, title, audience, material_type, analysis_hash
         )
         if cached is not None:
-            return {**cached.to_dict(), "cached": True}
+            return {**cached.to_dict(), "title": title, "meta": {
+                "audience": audience,
+                "material_type": MATERIAL_TYPES.get(material_type, material_type),
+                "generator": "DeepSeek",
+            }, "cached": True}
 
         result = await generate_material(title, analysis, audience, material_type)
         saved = await gm_svc.upsert_generated_material(
-            db, user.id, title, audience, material_type, result["content"]
+            db, user.id, title, audience, material_type, analysis_hash, result["content"]
         )
         return {**saved.to_dict(), "title": result["title"], "meta": result["meta"], "cached": False}
     except Exception as exc:
@@ -122,12 +129,13 @@ async def generate_all_endpoint(
     audience = payload.get("audience", "")
     if not analysis or not audience:
         raise HTTPException(status_code=400, detail="缺少必要参数")
+    analysis_hash = compute_analysis_hash(analysis)
     try:
         cached_materials = {}
         missing_types = set()
         for material_type in MATERIAL_TYPES:
             cached = await gm_svc.get_generated_material(
-                db, user.id, title, audience, material_type
+                db, user.id, title, audience, material_type, analysis_hash
             )
             if cached is not None:
                 cached_materials[material_type] = {
@@ -149,7 +157,7 @@ async def generate_all_endpoint(
         generated_with_id = []
         for item in generated:
             saved = await gm_svc.upsert_generated_material(
-                db, user.id, title, audience, item["material_type"], item["content"]
+                db, user.id, title, audience, item["material_type"], analysis_hash, item["content"]
             )
             generated_with_id.append({**saved.to_dict(), "title": item["title"], "meta": item["meta"], "cached": False})
 

@@ -83,6 +83,9 @@ async function doParse() {
 
 async function doGenerate(materialType: string) {
   if (!analysis.value) return
+  if (materialType === activeMaterialType.value && currentMaterial.value) {
+    return
+  }
   activeMaterialType.value = materialType
   const cached = findMaterial(materialType)
   if (cached) {
