@@ -103,4 +103,40 @@ print('download', r.status_code, r.headers.get('content-type'))
 assert r.status_code == 200
 assert 'E2E 测试内容' in r.text
 
+# 12. 生成助手送审链路：from-generation 创建草稿 → 提交审核
+r = httpx.post(f'{base_api}/api/materials/from-generation', json={
+    'title': f'E2E 生成助手送审 {suffix}',
+    'content': '# E2E 生成助手内容',
+    'material_type': 'version_announcement',
+    'audience': '网点管理员',
+    'source_title': f'E2E 源文档 {suffix}',
+    'analysis': '{}',
+}, headers=editor_headers)
+print('from-generation', r.status_code, r.json()['status'])
+assert r.status_code == 200
+assert r.json()['status'] == 'draft'
+mid3 = r.json()['id']
+
+r = httpx.post(f'{base_api}/api/materials/{mid3}/submit', headers=editor_headers)
+print('submit from-generation', r.status_code, r.json()['status'])
+assert r.status_code == 200
+assert r.json()['status'] == 'pending_review'
+
+# 13. 未审核资产不可下载（mid2 此时为 pending_review）
+r = httpx.get(f'{base_api}/api/materials/{mid2}/download', headers=editor_headers)
+print('download pending blocked', r.status_code, r.json().get('detail'))
+assert r.status_code == 400
+
+# 14. 生成助手送审的资产审核通过后可下载（完整闭环）
+r = httpx.post(f'{base_api}/api/materials/{mid3}/reviews',
+               json={'action': 'approve', 'comment': '生成助手链路通过'}, headers=reviewer_headers)
+print('approve from-generation', r.status_code, r.json()['status'])
+assert r.status_code == 200
+assert r.json()['status'] == 'approved'
+
+r = httpx.get(f'{base_api}/api/materials/{mid3}/download', headers=editor_headers)
+print('download from-generation approved', r.status_code)
+assert r.status_code == 200
+assert 'E2E 生成助手内容' in r.text
+
 print('E2E smoke test passed')

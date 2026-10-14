@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ref, computed, watch } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import type { AnalysisResult, Material } from '../api/client'
 import { parseDocument, generateMaterial, generateAllMaterials, updateGeneratedMaterial } from '../api/client'
-import { saveFromGeneration } from '@/api/materials'
+import { saveFromGeneration, submitMaterial, listMaterials, downloadMaterial } from '@/api/materials'
 import { updateAnalysis, type AnalysisUpdatePayload } from '@/api/analysis'
 import { renderMarkdown } from '@/utils/markdown'
-import { Upload, Search, DocumentCopy, Download, Document, DocumentChecked, Warning, CircleCheck, RefreshRight, Edit } from '@element-plus/icons-vue'
+import { Upload, Search, DocumentCopy, Download, Document, DocumentChecked, Warning, CircleCheck, RefreshRight, Refresh, Edit } from '@element-plus/icons-vue'
 
 const title = ref('网点管家 V3.2.0 版本迭代说明')
 const content = ref(`【版本】网点管家 V3.2.0\n【发布日期】2026-10-20\n【适用范围】全国加盟网点\n\n一、新增功能\n1. 新增「异常件一键上报」功能\n网点扫描异常件后，可在首页直接发起上报，系统自动带出运单号、异常类型、上报时间，无需手工填写。\n\n二、优化与调整\n1. 运单批量导入：导入失败时返回具体失败原因与失败行号，便于网点自行排错。\n2. 消息中心：重要通知将后台自动推送，先在小部分网点试点，逐步放开至 30% 网点。\n3. 在线客服：由「我的」调整至「首页 - 帮助中心」。\n4. 旧版对账单：统一使用新版对账单。\n\n三、注意事项\n1. 本次版本需网点管家升级至 V3.2.0 以上版本方可使用新功能。\n2. 派费日结数据存在 24 小时延迟，以财务系统最终数据为准。\n3. 升级期间请勿强制关闭 App，避免数据同步异常。\n\n四、风险提示\n如出现派费数据缺失，请勿重复提交申诉，等待系统次日补数即可。遇到问题请勿重复操作，及时联系区域客服。`)
@@ -26,6 +26,13 @@ const editingText = ref('')
 const isEditingMaterial = ref(false)
 const editingMaterialContent = ref('')
 
+const submitting = ref(false)
+const submittedKey = ref('')
+
+const refreshingStatus = ref(false)
+const materialAssetId = ref<number | null>(null)
+const materialAssetStatus = ref<string | null>(null)
+
 const audiences = ['网点管理员', '业务员', '内部汇报']
 const materialTypes = [
   { key: 'version_announcement', label: '版本宣发稿', num: '01' },
@@ -40,6 +47,36 @@ const stats = computed(() => {
   const lines = content.value.split('\n').length
   const chars = content.value.length
   return `${chars} 字 · ${lines} 行`
+})
+
+const currentMaterialKey = computed(() =>
+  currentMaterial.value ? `${currentMaterial.value.material_type}|${currentMaterial.value.content}` : '',
+)
+const isSubmitted = computed(
+  () => !!currentMaterialKey.value && submittedKey.value === currentMaterialKey.value,
+)
+
+watch(currentMaterialKey, () => {
+  materialAssetId.value = null
+  materialAssetStatus.value = null
+})
+
+const statusLabels: Record<string, string> = {
+  draft: '草稿',
+  pending_review: '待审核',
+  approved: '已通过',
+  rejected: '已驳回',
+}
+const materialStatusText = computed(() =>
+  materialAssetStatus.value ? statusLabels[materialAssetStatus.value] || materialAssetStatus.value : '未查询',
+)
+const canDownload = computed(() => materialAssetStatus.value === 'approved' && !!materialAssetId.value)
+const downloadHint = computed(() => {
+  if (materialAssetStatus.value === 'approved') return '下载已审核通过的物料'
+  if (materialAssetStatus.value === 'pending_review') return '待审核，审核通过后可下载'
+  if (materialAssetStatus.value === 'rejected') return '已驳回，请修改后重新提交审核'
+  if (materialAssetStatus.value === 'draft') return '资产为草稿，请先提交审核'
+  return '请先点击「刷新审核状态」查询审核结果'
 })
 
 function onFileChange(raw: any) {
@@ -153,31 +190,93 @@ function copyContent() {
   ElMessage.success('已复制')
 }
 
-function downloadCurrent() {
-  if (!currentMaterial.value) return
-  const blob = new Blob([currentMaterial.value.content], { type: 'text/markdown' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${currentMaterial.value.title}.md`
-  a.click()
-  URL.revokeObjectURL(url)
+async function refreshReviewStatus() {
+  const material = currentMaterial.value
+  if (!material) return
+  refreshingStatus.value = true
+  try {
+    const res = await listMaterials()
+    const matched = (res.data as any[])
+      .filter(
+        (m) =>
+          m.source_title === title.value &&
+          m.material_type === material.meta.material_type &&
+          m.audience === material.meta.audience,
+      )
+      .sort((a, b) => b.id - a.id)[0]
+    if (matched) {
+      materialAssetId.value = matched.id
+      materialAssetStatus.value = matched.status
+      ElMessage.success(`审核状态：${statusLabels[matched.status] || matched.status}`)
+    } else {
+      materialAssetId.value = null
+      materialAssetStatus.value = null
+      ElMessage.info('未找到该物料的审核记录，请先「保存并提交审核」')
+    }
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '刷新失败')
+  } finally {
+    refreshingStatus.value = false
+  }
 }
 
-async function saveAsDraft() {
+function onDownloadClick() {
+  if (!canDownload.value) {
+    ElMessage.info(downloadHint.value)
+    return
+  }
+  downloadCurrent()
+}
+
+async function downloadCurrent() {
+  if (!materialAssetId.value) return
+  try {
+    const res = await downloadMaterial(materialAssetId.value)
+    const blob = new Blob([res.data], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${currentMaterial.value?.title || 'material'}.md`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '下载失败')
+  }
+}
+
+async function saveAndSubmit() {
   if (!currentMaterial.value || !analysis.value) return
   try {
-    await saveFromGeneration({
-      title: currentMaterial.value.title,
-      content: currentMaterial.value.content,
-      material_type: currentMaterial.value.meta.material_type,
-      audience: currentMaterial.value.meta.audience,
-      source_title: title.value,
-      analysis: JSON.stringify(analysis.value),
-    })
-    ElMessage.success('已保存为草稿')
+    await ElMessageBox.confirm('提交后将进入审核流程，审核期间不可编辑。确认提交？', '提交审核', { type: 'info' })
+  } catch {
+    return
+  }
+  submitting.value = true
+  try {
+    const created = (
+      await saveFromGeneration({
+        title: currentMaterial.value.title,
+        content: currentMaterial.value.content,
+        material_type: currentMaterial.value.meta.material_type,
+        audience: currentMaterial.value.meta.audience,
+        source_title: title.value,
+        analysis: JSON.stringify(analysis.value),
+      })
+    ).data
+    materialAssetId.value = created.id
+    try {
+      await submitMaterial(created.id)
+      materialAssetStatus.value = 'pending_review'
+      ElMessage.success('已提交审核，可在「我的资产」页面查看进度')
+    } catch (e: any) {
+      materialAssetStatus.value = 'draft'
+      ElMessage.error(e.response?.data?.detail || '提交失败，物料已保存为草稿，可在「我的资产」页面重试')
+    }
+    submittedKey.value = currentMaterialKey.value
   } catch (e: any) {
     ElMessage.error(e.response?.data?.detail || '保存失败')
+  } finally {
+    submitting.value = false
   }
 }
 
@@ -478,17 +577,33 @@ async function regenerate() {
           </el-check-tag>
         </div>
 
-        <p class="generate-hint">生成后可直接复制或导出 Markdown</p>
+        <p class="generate-hint">生成后可直接复制；当前物料审核状态：{{ materialStatusText }}</p>
 
         <div class="material-actions">
           <el-button :disabled="!currentMaterial || isEditingMaterial" @click="copyContent">
             <el-icon><DocumentCopy /></el-icon> 复制
           </el-button>
-          <el-button :disabled="!currentMaterial || isEditingMaterial" @click="downloadCurrent">
-            <el-icon><Download /></el-icon> 下载本页
+          <el-tooltip :content="downloadHint" placement="top">
+            <span class="download-wrap" :class="{ 'is-blocked': !canDownload }" @click="onDownloadClick">
+              <el-button :disabled="!canDownload">
+                <el-icon><Download /></el-icon> 下载本页
+              </el-button>
+            </span>
+          </el-tooltip>
+          <el-button
+            :disabled="!currentMaterial || isEditingMaterial"
+            :loading="refreshingStatus"
+            @click="refreshReviewStatus"
+          >
+            <el-icon><Refresh /></el-icon> 刷新审核状态
           </el-button>
-          <el-button :disabled="!currentMaterial || isEditingMaterial" @click="saveAsDraft">
-            <el-icon><DocumentChecked /></el-icon> 保存为草稿
+          <el-button
+            type="primary"
+            :loading="submitting"
+            :disabled="!currentMaterial || isEditingMaterial || isSubmitted"
+            @click="saveAndSubmit"
+          >
+            <el-icon><DocumentChecked /></el-icon> {{ isSubmitted ? '已提交审核' : '保存并提交审核' }}
           </el-button>
           <el-button :disabled="!currentMaterial || isEditingMaterial" @click="editMaterial">
             <el-icon><Edit /></el-icon> 编辑
@@ -571,6 +686,8 @@ async function regenerate() {
 .material-num { margin-right: 6px; opacity: .7; }
 .generate-hint { color: #909399; font-size: 12px; margin: 0 0 12px; }
 .material-actions { display: flex; gap: 10px; margin-bottom: 20px; }
+.download-wrap { display: inline-block; }
+.download-wrap.is-blocked :deep(.el-button) { pointer-events: none; }
 .material-content { border: 1px solid #ebeef5; border-radius: 8px; padding: 24px; background: #fff; }
 .material-title { margin: 0 0 12px; color: #7b2cbf; font-size: 22px; }
 .material-meta { color: #606266; font-size: 13px; margin-bottom: 16px; padding: 12px; background: #fdf6ec; border-left: 4px solid #e6a23c; }
