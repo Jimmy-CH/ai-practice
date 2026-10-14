@@ -60,13 +60,16 @@ export interface GeneratedMaterial {
   updated_at?: string
 }
 
-export async function parseDocument(title: string, content: string, file?: File): Promise<AnalysisResult> {
+export async function parseDocument(title: string, content: string, file?: File, audience?: string): Promise<AnalysisResult> {
   const form = new FormData()
   form.append('title', title)
   if (file) {
     form.append('file', file)
   } else {
     form.append('content', content)
+  }
+  if (audience) {
+    form.append('audience', audience)
   }
   const response = await api.post('/parse', form, {
     headers: { 'Content-Type': 'multipart/form-data' },

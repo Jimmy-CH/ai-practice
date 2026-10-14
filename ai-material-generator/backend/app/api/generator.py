@@ -21,6 +21,7 @@ router = APIRouter()
 async def parse_endpoint(
     title: str = Form(...),
     content: str = Form(""),
+    audience: str = Form("网点管理员"),
     file: UploadFile | None = File(None),
     user: UserOut = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -45,6 +46,18 @@ async def parse_endpoint(
             raise HTTPException(status_code=400, detail="文档正文为空")
         result = await analyze_document(title, content)
         saved = await analysis_svc.upsert_analysis(db, user.id, title, result)
+
+        # 首次解析时一并生成当前受众的全部 6 种物料并缓存
+        try:
+            materials = await generate_all_materials(title, result, audience)
+            for item in materials:
+                await gm_svc.upsert_generated_material(
+                    db, user.id, title, audience, item["material_type"], item["content"]
+                )
+        except Exception:
+            # 物料生成失败不阻塞解析结果返回，前端可在切换时按需重新生成
+            pass
+
         return {"analysis_id": saved.id, "title": title, **saved.to_dict()}
     except HTTPException:
         raise

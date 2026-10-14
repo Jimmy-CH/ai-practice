@@ -60,7 +60,7 @@ async function doParse() {
   }
   loading.value = true
   try {
-    analysis.value = await parseDocument(title.value, content.value, file.value || undefined)
+    analysis.value = await parseDocument(title.value, content.value, file.value || undefined, audience.value)
     if (analysis.value?.analysis_id) {
       ElMessage.success('解析完成（结果已保存）')
     } else {
