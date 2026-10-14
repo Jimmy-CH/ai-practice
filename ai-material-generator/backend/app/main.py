@@ -1,3 +1,4 @@
+import json
 import logging
 import time
 from contextlib import asynccontextmanager
@@ -10,6 +11,36 @@ from app.api.analyses import router as analyses_router
 from app.api.generated_materials import router as generated_materials_router
 from app.database import engine, Base, AsyncSessionLocal
 from app.services.auth_service import seed_users
+
+
+SENSITIVE_KEYS = {"password", "token", "access_token", "refresh_token", "api_key", "authorization"}
+BODY_LOG_MAX_LENGTH = 500
+
+
+def _sanitize_body(raw: bytes, content_type: str) -> str:
+    """将请求体转为可安全打印的文本，敏感字段与表单数据脱敏，超长截断。"""
+    if not raw:
+        return ""
+    if content_type.startswith("application/x-www-form-urlencoded") or content_type.startswith("multipart/form-data"):
+        return "<form-data redacted>"
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return "<binary>"
+    if content_type.startswith("application/json"):
+        try:
+            data = json.loads(text)
+            if isinstance(data, dict):
+                data = {
+                    key: ("***" if key.lower() in SENSITIVE_KEYS else value)
+                    for key, value in data.items()
+                }
+            text = json.dumps(data, ensure_ascii=False)
+        except (json.JSONDecodeError, ValueError):
+            pass
+    if len(text) > BODY_LOG_MAX_LENGTH:
+        return text[:BODY_LOG_MAX_LENGTH] + f"...(truncated, total {len(text)} chars)"
+    return text
 
 
 logger = logging.getLogger("app.main")
@@ -33,9 +64,21 @@ async def log_request_duration(request: Request, call_next):
     start = time.perf_counter()
     method = request.method
     path = request.url.path
+    query = request.url.query
+    client_ip = request.client.host if request.client else "-"
+    content_type = request.headers.get("content-type", "")
+    body_preview = ""
+    if method in ("POST", "PUT", "PATCH"):
+        raw_body = await request.body()
+        body_preview = _sanitize_body(raw_body, content_type)
     response = await call_next(request)
     duration_ms = (time.perf_counter() - start) * 1000
-    logger.info(f"[{method}] {path} -> {response.status_code} ({duration_ms:.2f}ms)")
+    suffix = f"?{query}" if query else ""
+    body_part = f" body={body_preview}" if body_preview else ""
+    logger.info(
+        f"[{method}] {path}{suffix} ip={client_ip}{body_part} "
+        f"-> {response.status_code} ({duration_ms:.2f}ms)"
+    )
     return response
 
 
