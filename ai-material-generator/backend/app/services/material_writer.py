@@ -1,3 +1,4 @@
+import asyncio
 import httpx
 from app.config import settings
 
@@ -89,9 +90,9 @@ async def generate_all_materials(
     title: str, analysis: dict, audience: str, skip_types: set[str] | None = None
 ) -> list[dict]:
     skip_types = skip_types or set()
-    materials = []
-    for material_type in MATERIAL_TYPES:
-        if material_type in skip_types:
-            continue
-        materials.append(await generate_material(title, analysis, audience, material_type))
-    return materials
+    tasks = [
+        generate_material(title, analysis, audience, material_type)
+        for material_type in MATERIAL_TYPES
+        if material_type not in skip_types
+    ]
+    return await asyncio.gather(*tasks)

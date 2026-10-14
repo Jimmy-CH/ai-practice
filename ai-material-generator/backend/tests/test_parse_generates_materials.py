@@ -8,7 +8,7 @@ async def test_parse_generates_all_materials_for_default_audience(client, editor
     async def fake_analyze(*args, **kwargs):
         return {"新增功能": ["A"], "变更与优化": [], "注意事项": [], "风险提示": []}
 
-    def fake_generate(title, analysis, audience, material_type):
+    async def fake_generate(title, analysis, audience, material_type):
         return {
             "title": f"R-{material_type}",
             "content": f"C-{material_type}",

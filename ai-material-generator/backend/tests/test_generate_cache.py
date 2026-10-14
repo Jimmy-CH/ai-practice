@@ -64,13 +64,16 @@ async def test_generate_uses_cache(client, editor_token):
 
 @pytest.mark.asyncio
 async def test_generate_all_caches_and_reuses(client, editor_token):
-    with patch("app.api.generator.generate_material", side_effect=lambda title, analysis, audience, mt: {
-        "title": f"R-{mt}",
-        "content": f"C-{mt}",
-        "audience": audience,
-        "material_type": mt,
-        "meta": {"audience": audience, "material_type": mt, "generator": "DeepSeek"},
-    }) as mock_generate:
+    async def fake_generate(title, analysis, audience, mt):
+        return {
+            "title": f"R-{mt}",
+            "content": f"C-{mt}",
+            "audience": audience,
+            "material_type": mt,
+            "meta": {"audience": audience, "material_type": mt, "generator": "DeepSeek"},
+        }
+
+    with patch("app.services.material_writer.generate_material", side_effect=fake_generate) as mock_generate:
         r = await client.post(
             "/api/generate-all",
             json={"title": "T", "analysis": {"新增功能": ["A"]}, "audience": "网点管理员"},
