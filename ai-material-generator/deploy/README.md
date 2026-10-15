@@ -23,27 +23,50 @@ sudo unzip materialgen-package-<日期>.zip -d /opt/material-gen/packages/
 
 前置：`python3.11`、`rsync`；pip 源可达（内网源用 `PIP_INDEX_URL` 指定）。星语网关不通仅警告，不阻断安装。
 
+### 系统级（有 root/sudo，推荐）
+
 ```bash
 cd /opt/material-gen/packages/materialgen-package-<日期>/deploy
 sudo bash install.sh
 # 可覆盖默认值：sudo DEPLOY_ROOT=/opt/material-gen PORT=8081 APP_USER=materialgen bash install.sh
 ```
 
-脚本行为：前置检查 →（升级时先停旧服务释放端口，首次安装直接检查端口）→
+安装到 `/opt/material-gen`，注册系统服务 `material-gen`。
+
+### 用户级（无 sudo 权限，普通账号直装）
+
+```bash
+cd ~/materialgen-package-<日期>/deploy
+bash install.sh                 # 无需 sudo
+# 可覆盖默认值：DEPLOY_ROOT=$HOME/material-gen PORT=8081 bash install.sh
+```
+
+安装到 `~/material-gen`，注册用户级服务（`systemctl --user`）。注意两点：
+
+1. **登出存活**：默认服务随登录会话存活；要让服务在登出/重启后继续运行，
+   需管理员执行一次：`sudo loginctl enable-linger <用户名>`（脚本结尾会自动检测并提示）。
+2. 用户级服务管理命令均加 `--user`：`systemctl --user status material-gen`、
+   `journalctl --user -u material-gen -n 50`。
+
+两种模式判定依据是执行时的 uid（root → 系统级），脚本行为：前置检查 →（升级时先停旧服务释放端口，首次安装直接检查端口）→
 rsync 源码与 static（排除 venv/.env/materials.db，现场数据保留）→
 venv 缺失则创建（Python 3.11）→ 在线安装依赖 → .env 缺失则从模板初始化 →
-安装并启动 systemd 服务 → 健康检查。
+安装并启动服务 → 健康检查。
 
 端口说明：端口是 uvicorn 命令行参数，不能用 .env 配置；临时换端口用
-`sudo PORT=xxxx bash install.sh` 覆盖重跑。
+`sudo PORT=xxxx bash install.sh`（或用户级 `PORT=xxxx bash install.sh`）覆盖重跑。
 
 ## 四、部署后验证清单
+
+系统级：
 
 1. `systemctl status material-gen` → active (running)
 2. `curl http://<host>:8081/api/health` → `{"status":"ok"}`
 3. 浏览器 `http://<host>:8081/` → 登录页加载；直刷 `/materials`、`/review` 不 404
 4. editor/editor123 登录 → 粘贴文本解析（星语网关可达）→ 生成物料 → 保存草稿；
    reviewer/reviewer123 登录 → 审核通过 → 「已审核」页下载 Markdown
+
+用户级：步骤 1 改为 `systemctl --user status material-gen`，其余相同。
 
 ## 五、升级与回滚
 
