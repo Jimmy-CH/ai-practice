@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     secret_key: str = "dev-secret-key-change-in-production"
     access_token_expire_minutes: int = 1440
     algorithm: str = "HS256"
+    static_dir: str = "static"
 
 
 settings = Settings()
