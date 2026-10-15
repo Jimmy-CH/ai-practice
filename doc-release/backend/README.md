@@ -71,3 +71,9 @@ Copy-Item .env.example .env    # 按需修改
 ## 归档
 
 产物写入 `archive/docs/release/<version>/`（同版本覆盖；删除时校验 trace.runId 防误删）。
+
+## 部署
+
+内网 Linux 离线部署（单端口同源托管 + systemd）：构建离线包、安装/升级/回滚
+见 [`deploy/README.md`](../deploy/README.md)；设计方案见仓库根
+`docs/superpowers/specs/2026-10-15-doc-release-deploy-design.md`。
