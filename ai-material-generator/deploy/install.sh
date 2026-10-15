@@ -81,14 +81,17 @@ systemctl daemon-reload
 systemctl enable "$SERVICE_NAME" >/dev/null
 systemctl restart "$SERVICE_NAME"
 
-# ---- 7. 健康检查（30 秒上限）----
+# ---- 7. 健康检查（30 秒硬超时，单次请求也受剩余时间约束）----
 log "等待服务就绪…"
-for _ in $(seq 1 15); do
-  if curl -sf "http://127.0.0.1:${PORT}/api/health" >/dev/null; then
+deadline=$(( $(date +%s) + 30 ))
+while [ "$(date +%s)" -lt "$deadline" ]; do
+  remain=$(( deadline - $(date +%s) ))
+  [ "$remain" -lt 1 ] && break
+  if curl -sf --connect-timeout 2 --max-time "$remain" "http://127.0.0.1:${PORT}/api/health" >/dev/null; then
     log "安装完成：http://<本机>:${PORT}/（systemctl status ${SERVICE_NAME} 查看状态）"
     exit 0
   fi
-  sleep 2
+  sleep 1
 done
-echo "[install][ERROR] 健康检查未通过，排查：journalctl -u ${SERVICE_NAME} -n 50" >&2
+echo "[install][ERROR] 健康检查未通过（30 秒超时），排查：journalctl -u ${SERVICE_NAME} -n 50" >&2
 exit 1
