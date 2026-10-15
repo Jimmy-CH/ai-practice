@@ -83,3 +83,5 @@ def test_collect_diff_expands_rename(repo):
     assert f["path"] == "src/renamed.ts"
     assert f.get("old_path") == "src/a.ts"
     assert f["added"] == 0 and f["removed"] == 0
+    # R100 纯重命名：patch 应无内容行，而非把新路径当整文件新增
+    assert f["lines"] == [] and f["truncated"] is False

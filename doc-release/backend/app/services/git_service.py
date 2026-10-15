@@ -189,7 +189,9 @@ def collect_diff(repo_path: str, base: str, head: str, max_lines: int = 400) -> 
         if old_path != path:
             entry["old_path"] = old_path
         if not binary and len(files) < _MAX_FILES:
-            patch = _run_git(repo_path, ["diff", "-U3", f"{base}..{head}", "--", path])
+            # 重命名需同时传旧、新路径，git 才能配对显示 rename，而非整文件新增
+            paths = [old_path, path] if old_path != path else [path]
+            patch = _run_git(repo_path, ["diff", "-U3", f"{base}..{head}", "--", *paths])
             entry["lines"], entry["truncated"] = _split_patch(patch, max_lines)
         files.append(entry)
 
