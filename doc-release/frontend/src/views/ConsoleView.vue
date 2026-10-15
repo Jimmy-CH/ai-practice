@@ -52,6 +52,9 @@ onBeforeUnmount(() => {
 <style scoped>
 .console { display: flex; flex-direction: column; gap: 14px; }
 .console-grid { display: grid; grid-template-columns: 1.05fr 0.85fr 1.1fr; gap: 14px; align-items: start; }
+/* 允许三栏收缩到轨道宽度以内，超宽内容交给面板内部 .scroll 滚动，
+   避免检查清单等宽表格把整列/整页撑大 */
+.console-grid > * { min-width: 0; }
 @media (max-width: 1180px) {
   .console-grid { grid-template-columns: 1fr 1fr; }
 }
