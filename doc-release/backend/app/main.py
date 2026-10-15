@@ -81,6 +81,31 @@ def register_static(app: FastAPI, static_dir: Path) -> None:
                 return True
         return False
 
+    def _partial_match_methods(path: str, method: str) -> list[str]:
+        """路径已注册但方法不匹配时返回允许的方法，复刻原生 405/Allow 语义。"""
+        scope = {"type": "http", "path": path, "method": method, "headers": []}
+        methods: set[str] = set()
+        for route in app.routes:
+            if getattr(route, "path", None) == "/{full_path:path}":
+                continue
+            match, _child = route.matches(scope)
+            if match == Match.PARTIAL:
+                methods |= _collect_methods(route, scope)
+        return sorted(methods)
+
+    def _collect_methods(route, scope: dict) -> set[str]:
+        """聚合路由允许的方法；兼容无 methods 属性的聚合路由（FastAPI 0.141 _IncludedRouter）。"""
+        methods = getattr(route, "methods", None)
+        if methods:
+            return {m for m in methods if m != "HEAD"}
+        result: set[str] = set()
+        inner = getattr(route, "original_router", None)
+        for sub in getattr(inner, "routes", None) or []:
+            match, _child = sub.matches(scope)
+            if match != Match.NONE:
+                result |= _collect_methods(sub, scope)
+        return result
+
     @app.api_route(
         "/{full_path:path}",
         methods=["GET", "HEAD", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
@@ -94,6 +119,14 @@ def register_static(app: FastAPI, static_dir: Path) -> None:
                     query = request.scope.get("query_string", b"")
                     location = target + (f"?{query.decode('latin-1')}" if query else "")
                     return RedirectResponse(location, status_code=307)
+            else:
+                allowed = _partial_match_methods("/" + full_path, request.method)
+                if allowed:
+                    return JSONResponse(
+                        {"detail": "Method Not Allowed"},
+                        status_code=405,
+                        headers={"Allow": ", ".join(allowed)},
+                    )
             return JSONResponse({"detail": "Not Found"}, status_code=404)
         if request.method in ("GET", "HEAD"):
             candidate = (static_dir / full_path).resolve()

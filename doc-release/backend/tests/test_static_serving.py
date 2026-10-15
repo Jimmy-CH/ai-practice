@@ -155,6 +155,32 @@ async def test_api_trailing_slash_unknown_stays_404(tmp_path):
     assert resp.json() == {"detail": "Not Found"}
 
 
+async def test_api_method_not_allowed_kept(tmp_path):
+    """已注册路径的方法不匹配保持原生 405 + Allow，不被 catch-all 压成 404。"""
+    static_dir = tmp_path / "static"
+    _write_index(static_dir)
+    app = _make_api_app(static_dir)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        patch_resp = await c.patch("/api/repos")
+        options_resp = await c.options("/api/repos")
+    assert patch_resp.status_code == 405
+    assert {"GET", "POST"} <= set(patch_resp.headers["allow"].split(", "))
+    assert options_resp.status_code == 405
+
+
+async def test_api_method_trailing_slash_still_redirects(tmp_path):
+    """方法不匹配 + 尾斜杠：去斜杠后存在路由即保持原生 307。"""
+    static_dir = tmp_path / "static"
+    _write_index(static_dir)
+    app = _make_api_app(static_dir)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        resp = await c.patch("/api/repos/", follow_redirects=False)
+    assert resp.status_code == 307
+    assert resp.headers["location"].endswith("/api/repos")
+
+
 async def test_real_app_trailing_slash(client):
     """真实应用的 include_router 路由同样保持 307（回归门禁）。"""
     resp = await client.get("/api/repos/", follow_redirects=False)
