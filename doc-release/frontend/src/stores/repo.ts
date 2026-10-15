@@ -43,6 +43,9 @@ export const useRepoStore = defineStore('repo', {
     },
     async selectRepo(id: number) {
       const seq = ++repoSeq
+      // 切换仓库即作废进行中的旧预览，防旧仓库响应写入新仓库状态
+      ++previewSeq
+      this.loadingPreview = false
       this.currentRepoId = id
       this.preview = null
       this.error = ''
@@ -96,6 +99,9 @@ export const useRepoStore = defineStore('repo', {
       // 用已完成运行的参数还原控制条（仓库/范围/口径/脱敏）与预览；响应先存局部，
       // 过序号守卫后才提交到共享状态，防被新切换取代的旧响应覆盖新仓库数据
       const seq = ++repoSeq
+      // 对齐另一运行即作废进行中的旧预览，与 selectRepo 同口径
+      ++previewSeq
+      this.loadingPreview = false
       this.tone = run.tone === 'tech' ? 'tech' : 'business'
       this.mask = run.mask
       if (run.repo_id === this.currentRepoId && this.refs) {
