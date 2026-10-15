@@ -1,3 +1,11 @@
+export const STEP_NAMES = [
+  '定位仓库与变更范围',
+  '收集变更（diff 与统计）',
+  'AST 解析变更结构',
+  'LLM 业务化语义改写',
+  '产物生成并归档',
+]
+
 export interface StepExplain {
   read: string
   write: string

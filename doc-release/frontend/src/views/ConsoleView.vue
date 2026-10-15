@@ -3,10 +3,7 @@
     <ControlBar />
     <div class="console-grid">
       <DiffPanel />
-      <section class="panel">
-        <div class="panel-header"><span>运行流水线</span></div>
-        <div class="panel-body empty">运行面板接入中</div>
-      </section>
+      <PipelinePanel />
       <section class="panel">
         <div class="panel-header"><span>产物</span></div>
         <div class="panel-body empty">产物面板接入中</div>
@@ -19,6 +16,7 @@
 import { onBeforeUnmount, onMounted } from 'vue'
 import ControlBar from '@/components/ControlBar.vue'
 import DiffPanel from '@/components/DiffPanel.vue'
+import PipelinePanel from '@/components/PipelinePanel.vue'
 import { useRepoStore } from '@/stores/repo'
 import { useRunStore } from '@/stores/run'
 
