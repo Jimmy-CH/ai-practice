@@ -29,6 +29,10 @@ frontend/dist-ssr/
 # Logs
 *.log
 
+# 部署构建产物
+out/
+backend/static/
+
 # OS
 .DS_Store
 Thumbs.db
