@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     archive_dir: str = "archive"
     sample_repo_dir: str = "sample_repo/order-center"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    # 部署形态下前端产物目录（相对 WorkingDirectory）；目录不存在则不挂载，开发模式不受影响
+    static_dir: str = "static"
 
     @property
     def cors_origin_list(self) -> list[str]:
