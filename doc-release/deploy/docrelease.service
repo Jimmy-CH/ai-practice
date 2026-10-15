@@ -1,0 +1,15 @@
+[Unit]
+Description=DocRelease (释文) backend + frontend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__APP_USER__
+WorkingDirectory=__DEPLOY_ROOT__/backend
+ExecStart=__DEPLOY_ROOT__/backend/venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port __PORT__
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
