@@ -31,8 +31,9 @@ sudo bash install.sh
 # 可覆盖默认值：sudo DEPLOY_ROOT=/opt/docrelease PORT=8000 APP_USER=docrelease bash install.sh
 ```
 
-脚本行为：前置检查 → rsync 源码与 static（排除 venv/.env/db/archive/sample_repo，现场数据保留）→
-venv 缺失则创建（Python 3.11）→ 离线安装依赖 → .env 缺失则从模板初始化 → 安装并重启 systemd 服务 → 健康检查。
+脚本行为：前置检查 →（升级时先停旧服务释放端口，首次安装直接检查端口）→
+rsync 源码与 static（排除 venv/.env/db/archive/sample_repo，现场数据保留）→
+venv 缺失则创建（Python 3.11）→ 离线安装依赖 → .env 缺失则从模板初始化 → 安装并启动 systemd 服务 → 健康检查。
 
 ## 四、部署后验证清单
 

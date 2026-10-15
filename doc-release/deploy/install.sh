@@ -24,12 +24,18 @@ if curl -sS --max-time 5 -o /dev/null "$XINGYU_URL"; then
 else
   log "警告：星语网关暂不可达（$XINGYU_URL），继续安装；运行期 LLM 步骤将失败/降级"
 fi
-if ss -ltn 2>/dev/null | grep -q ":${PORT} "; then
-  die "端口 ${PORT} 已被占用，请先释放，或以 PORT=其他端口 重跑"
-fi
 [ -d "$PKG_ROOT/backend" ] || die "离线包不完整：缺少 backend/"
 [ -d "$PKG_ROOT/static" ] || die "离线包不完整：缺少 static/（请先在开发机执行 build_offline_package.ps1）"
 [ -d "$PKG_ROOT/wheels" ] || die "离线包不完整：缺少 wheels/"
+
+# 升级场景：先停旧服务释放端口（首次安装无单元则跳过）
+if [ -f "/etc/systemd/system/${SERVICE_NAME}.service" ]; then
+  log "检测到已安装的 ${SERVICE_NAME}，先停止以完成升级"
+  systemctl stop "$SERVICE_NAME" || true
+fi
+if ss -ltn 2>/dev/null | grep -q ":${PORT} "; then
+  die "端口 ${PORT} 被其他进程占用，请先释放，或以 PORT=其他端口 重跑"
+fi
 
 # ---- 2. 系统用户 ----
 if ! id "$APP_USER" >/dev/null 2>&1; then
