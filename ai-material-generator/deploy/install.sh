@@ -15,6 +15,11 @@ XINGYU_URL="${XINGYU_URL:-http://10.130.13.74:8060/api/chat/chat}"
 log() { echo "[install] $*"; }
 die() { echo "[install][ERROR] $*" >&2; exit 1; }
 
+# ---- 0. 权限检查（useradd/systemd 单元/chown 均需 root）----
+if [ "$(id -u)" -ne 0 ]; then
+  die "需要 root 权限，请使用：sudo bash install.sh"
+fi
+
 # ---- 1. 前置检查 ----
 command -v python3.11 >/dev/null || die "缺少 python3.11，请先安装"
 command -v rsync >/dev/null || die "缺少 rsync"
