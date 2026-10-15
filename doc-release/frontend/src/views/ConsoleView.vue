@@ -23,6 +23,17 @@ const runStore = useRunStore()
 
 onMounted(async () => {
   await store.loadRepos()
+  // 刷新页面后恢复现场：优先恢复最近一次运行
+  if (!runStore.current) {
+    const lastRun = localStorage.getItem('docrelease:lastRun')
+    if (lastRun) {
+      try {
+        await runStore.attach(lastRun)
+      } catch {
+        localStorage.removeItem('docrelease:lastRun')
+      }
+    }
+  }
   // 从其他页面切回时，若当前运行仍在进行且流已断开，则重新订阅
   if (runStore.current && runStore.isActive && !runStore.handle) {
     runStore.connect(runStore.current.id)

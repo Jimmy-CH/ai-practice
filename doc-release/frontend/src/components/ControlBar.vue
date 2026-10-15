@@ -3,7 +3,7 @@
     <div class="panel-body control-grid">
       <div class="field">
         <label class="field-label">仓库</label>
-        <el-select v-model="repoModel" placeholder="选择仓库" style="width: 220px">
+        <el-select v-model="repoModel" placeholder="选择仓库" style="width: 220px" :disabled="runStore.isActive">
           <el-option v-for="r in store.repos" :key="r.id"
                      :label="r.is_sample ? `${r.name}（内置示例）` : r.name" :value="r.id" />
         </el-select>
@@ -14,7 +14,7 @@
         <div class="toolbar">
           <button v-for="sc in store.scenarios" :key="sc.id" class="chip-btn"
                   :class="{ 'chip-btn--active': sc.base === store.baseRef && sc.head === store.headRef }"
-                  :title="sc.description" @click="store.applyScenario(sc)">
+                  :disabled="runStore.isActive" :title="sc.description" @click="store.applyScenario(sc)">
             {{ sc.name }} · {{ sc.version }}
           </button>
         </div>
@@ -23,11 +23,11 @@
       <div class="field">
         <label class="field-label">变更范围</label>
         <div class="toolbar">
-          <el-select v-model="baseModel" style="width: 148px" @change="store.loadPreview()">
+          <el-select v-model="baseModel" style="width: 148px" :disabled="runStore.isActive" @change="store.loadPreview()">
             <el-option v-for="r in store.refOptions" :key="`b-${r.name}`" :label="r.name" :value="r.name" />
           </el-select>
-          <button class="swap-btn" title="交换 base/head" @click="store.swapRefs()">⇄</button>
-          <el-select v-model="headModel" style="width: 148px" @change="store.loadPreview()">
+          <button class="swap-btn" title="交换 base/head" :disabled="runStore.isActive" @click="store.swapRefs()">⇄</button>
+          <el-select v-model="headModel" style="width: 148px" :disabled="runStore.isActive" @change="store.loadPreview()">
             <el-option v-for="r in store.refOptions" :key="`h-${r.name}`" :label="r.name" :value="r.name" />
           </el-select>
         </div>
@@ -35,12 +35,12 @@
 
       <div class="field">
         <label class="field-label">版本号</label>
-        <el-input v-model="versionModel" style="width: 140px" placeholder="如 v2.14.0" />
+        <el-input v-model="versionModel" style="width: 140px" placeholder="如 v2.14.0" :disabled="runStore.isActive" />
       </div>
 
       <div class="field">
         <label class="field-label">展示口径</label>
-        <el-radio-group v-model="toneModel" size="small">
+        <el-radio-group v-model="toneModel" size="small" :disabled="runStore.isActive">
           <el-radio-button value="business">业务</el-radio-button>
           <el-radio-button value="tech">技术</el-radio-button>
         </el-radio-group>
@@ -48,7 +48,7 @@
 
       <div class="field">
         <label class="field-label">脱敏</label>
-        <el-switch v-model="maskModel" />
+        <el-switch v-model="maskModel" :disabled="runStore.isActive" />
       </div>
 
       <div class="field field--actions">
@@ -135,4 +135,5 @@ async function onRun() {
 .run-progress { display: flex; align-items: center; gap: 10px; padding: 0 14px 14px; }
 .run-progress :deep(.el-progress) { flex: 1; }
 .run-progress-text { font-size: 12px; white-space: nowrap; }
+.chip-btn:disabled, .swap-btn:disabled { opacity: .55; cursor: not-allowed; }
 </style>

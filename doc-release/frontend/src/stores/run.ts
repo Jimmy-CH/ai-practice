@@ -97,6 +97,7 @@ export const useRunStore = defineStore('run', {
     ) {
       this.reset()
       const detail = await api.createRun({ repo_id: repoId, ...payload })
+      localStorage.setItem('docrelease:lastRun', detail.id)
       this.applySnapshot(detail)
       this.connect(detail.id)
     },

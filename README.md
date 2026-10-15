@@ -10,6 +10,7 @@ AI 全栈实践项目集合，涵盖从基础 AI 对话到企业级知识库问�
 | [ai-chat](#2-ai-chat) | AI 对话完整版 | 用户认证 + JWT + SSE 断点续传 + 全异步架构 |
 | [data-agent](#3-data-agent) | 数据分析 Agent | LangChain ReAct Agent + SQL 工具 + RBAC 权限 |
 | [rag-knowledge-base](#4-rag-knowledge-base) | RAG 知识库问答 | ChromaDB 向量检索 + 语义缓存 + 可观测性 |
+| [doc-release](#5-doc-release) | 发布文档自动生成（释文） | 五步异步流水线 + SSE + tree-sitter AST + 星语 LLM |
 
 ## 技术栈
 
@@ -100,6 +101,25 @@ rag-knowledge-base/
 
 ---
 
+## 5. doc-release
+
+> 输入任意 git 仓库的变更范围（base..head），自动生成发布文档三件套：发布检查清单（CSV）、产品说明（Markdown）、溯源数据（JSON）。
+
+**核心能力：**
+- **五步异步流水线**：定位范围 → 收集 diff → tree-sitter AST 解析 → LLM 业务化改写 → 确定性渲染并归档
+- **SSE 实时推送**：步骤状态 / 终端日志 / 进度事件驱动三栏工作台；断线指数退避重连、刷新恢复现场
+- **结构化中间层**：LLM 只产出 JSON 功能点，产物由确定性渲染器生成，可溯源可比对
+- **内置示例仓库**：order-center 含补丁 / 功能 / 大版本三大变更场景，首次启动自动生成
+- **发布历史**：运行回看、按口径（业务/技术）与脱敏开关即时重渲染、导出与删除
+
+```
+doc-release/
+├── backend/     # FastAPI + 五步流水线 + tree-sitter + SSE
+└── frontend/    # Vue 3 + Element Plus 三栏工作台 + 发布历史
+```
+
+---
+
 ## 快速开始
 
 ### 环境要求
@@ -153,6 +173,9 @@ ai-practice/
 │   ├── frontend/            #   Vue 3 + Element Plus
 │   ├── docker/              #   Docker Compose 编排
 │   └── tests/               #   pytest 测试
+├── doc-release/             # ⑤ 发布文档自动生成（释文）
+│   ├── backend/             #   五步流水线 + tree-sitter + 星语 LLM
+│   └── frontend/            #   Vue 3 三栏工作台 + 发布历史
 └── docs/                    # 设计文档
 ```
 
