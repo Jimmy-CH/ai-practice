@@ -1,7 +1,7 @@
 # DocRelease 部署脚手架
 
 内网 Linux 离线部署（设计文档：仓库根 `docs/superpowers/specs/2026-10-15-doc-release-deploy-design.md`）。
-单端口同源托管：uvicorn :8000 同时服务页面、API、SSE。
+单端口同源托管：uvicorn :8080 同时服务页面、API、SSE。
 
 ## 一、开发机构建离线包（Windows）
 
@@ -28,7 +28,7 @@ sudo unzip docrelease-offline-<日期>.zip -d /opt/docrelease/packages/
 ```bash
 cd /opt/docrelease/packages/docrelease-offline-<日期>/deploy
 sudo bash install.sh
-# 可覆盖默认值：sudo DEPLOY_ROOT=/opt/docrelease PORT=8000 APP_USER=docrelease bash install.sh
+# 可覆盖默认值：sudo DEPLOY_ROOT=/opt/docrelease PORT=8080 APP_USER=docrelease bash install.sh
 ```
 
 脚本行为：前置检查 →（升级时先停旧服务释放端口，首次安装直接检查端口）→
@@ -38,8 +38,8 @@ venv 缺失则创建（Python 3.11）→ 离线安装依赖 → .env 缺失则�
 ## 四、部署后验证清单
 
 1. `systemctl status docrelease` → active (running)
-2. `curl http://<host>:8000/api/health` → `{"status":"ok"}`
-3. 浏览器 `http://<host>:8000/` 工作台加载、仓库列表含 order-center；直刷 `/history` 不 404
+2. `curl http://<host>:8080/api/health` → `{"status":"ok"}`
+3. 浏览器 `http://<host>:8080/` 工作台加载、仓库列表含 order-center；直刷 `/history` 不 404
 4. 示例仓 v2.13.3→v2.13.4 跑一次：SSE 步骤/日志/进度实时推送，产物可预览下载，
    `archive/docs/release/v2.13.4/` 生成三个产物文件
 

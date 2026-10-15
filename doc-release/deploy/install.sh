@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # DocRelease 离线安装/升级脚本（在部署机的离线包目录内执行）
 # 用法：sudo bash install.sh
-# 可覆盖默认：DEPLOY_ROOT=/opt/docrelease PORT=8000 APP_USER=docrelease
+# 可覆盖默认：DEPLOY_ROOT=/opt/docrelease PORT=8080 APP_USER=docrelease
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -9,7 +9,7 @@ PKG_ROOT="$(dirname "$SCRIPT_DIR")"
 DEPLOY_ROOT="${DEPLOY_ROOT:-/opt/docrelease}"
 APP_USER="${APP_USER:-docrelease}"
 SERVICE_NAME="docrelease"
-PORT="${PORT:-8000}"
+PORT="${PORT:-8080}"
 XINGYU_URL="${XINGYU_URL:-http://10.130.13.74:8060/api/chat/chat}"
 
 log() { echo "[install] $*"; }

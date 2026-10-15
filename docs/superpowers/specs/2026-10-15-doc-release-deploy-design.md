@@ -20,7 +20,7 @@ doc-release（释文）为 FastAPI 后端 + Vue 3 前端的全栈工具，依赖
 | 服务形态 | 方案 A：FastAPI 单端口同源托管（uvicorn 直接服务前端 dist + API + SSE） |
 | 否决方案 | nginx 前置反代（SSE 缓冲配置易踩坑、多一组件、对内网单机工具过度设计）；Docker（用户排除） |
 | Python 版本 | **3.11.11**（用户指定）。已核验：全部依赖 `Requires-Python` 下限 ≤ 3.10（tree_sitter 0.26.0、fastapi 0.141.1、pytest 9.1.1、pydantic_core 等），3.11 满足全部下限；开发环境同为 3.11.x，行为一致 |
-| 端口 | 8000（与开发后端一致，可改 systemd unit 中 `--port`） |
+| 端口 | 8080（开发后端仍为 8000；可通过 PORT 变量或 unit `--port` 调整） |
 | 认证 | 无（首期非目标，内网使用） |
 
 派生约束：开发与部署统一 Python 3.11；引入新依赖时核对 `Requires-Python` ≤ 3.11。
@@ -49,7 +49,7 @@ doc-release（释文）为 FastAPI 后端 + Vue 3 前端的全栈工具，依赖
     └── env.template              # .env 模板
 ```
 
-进程模型：systemd 管理单个 uvicorn 进程，监听 `0.0.0.0:8000`，同端口服务页面、API、SSE。
+进程模型：systemd 管理单个 uvicorn 进程，监听 `0.0.0.0:8080`，同端口服务页面、API、SSE。
 运行时前置：Python 3.11.11、git（示例仓库生成与“注册本地仓库”功能都需要）、内网可达星语网关。
 单 worker 即可：流水线为 asyncio 异步 + `asyncio.to_thread`，SQLite 与本地 git 仓库路径均为单机形态。
 
@@ -100,7 +100,7 @@ docrelease-offline-YYYYMMDD/
    安装成功后 `wheels/` 可删除，再次升级重跑 install.sh 时由新包重建；
 6. `.env` 不存在则从 `env.template` 初始化（存在则不动，保留现场配置）；
 7. 安装 `docrelease.service` 至 `/etc/systemd/system/`，`daemon-reload`、`enable --now`；
-8. 健康检查：循环 `curl http://127.0.0.1:8000/api/health`（最多 30s），失败则输出 journalctl 排障指引并以非零码退出。
+8. 健康检查：循环 `curl http://127.0.0.1:8080/api/health`（最多 30s），失败则输出 journalctl 排障指引并以非零码退出。
 
 **升级** = 上传新离线包、重跑 `install.sh`、脚本内自动 `systemctl restart`。运行时数据
 （db/archive/sample_repo/.env）全部保留。首次启动时 lifespan 自动建表并幂等生成示例仓库。
@@ -119,7 +119,7 @@ Wants=network-online.target
 Type=simple
 User=docrelease
 WorkingDirectory=/opt/docrelease/backend
-ExecStart=/opt/docrelease/backend/venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+ExecStart=/opt/docrelease/backend/venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8080
 Restart=always
 RestartSec=3
 
@@ -149,8 +149,8 @@ WantedBy=multi-user.target
 ## 10. 部署后验证清单
 
 1. `systemctl status docrelease` → active (running)；
-2. `curl http://<host>:8000/api/health` → `{"status":"ok"}`；
-3. 浏览器打开 `http://<host>:8000/` → 三栏工作台加载、仓库列表含 order-center（示例仓）；
+2. `curl http://<host>:8080/api/health` → `{"status":"ok"}`；
+3. 浏览器打开 `http://<host>:8080/` → 三栏工作台加载、仓库列表含 order-center（示例仓）；
 4. 直刷 `/history` → 不 404（SPA fallback 生效）；
 5. 示例仓跑一次 v2.13.3→v2.13.4 运行 → SSE 步骤/日志/进度实时推送 → 三类产物可预览、可下载；
 6. `archive/docs/release/v2.13.4/` 生成三个产物文件；
@@ -163,6 +163,6 @@ WantedBy=multi-user.target
 | tree-sitter 系 wheel 在目标平台缺失 | 构建时清单校验；缺则回落 WSL 打包路径 |
 | 部署机 Python 版本漂移（装成 3.8/3.12 等） | install.sh 显式检查 `python3.11`，缺失即失败并提示安装命令 |
 | 星语网关不可达（网段/防火墙） | install.sh 探测告警；运行期 LLM 步骤失败/降级已在流水线内处理 |
-| 8000 端口被占 | 安装前 `ss -ltn` 检查；改端口只动 unit 一处 |
+| 8080 端口被占 | 安装前 `ss -ltn` 检查；改端口只动 unit 一处 |
 | uvicorn 单进程性能上限 | 内网单工具够用；将来加 nginx 前置 + 多 worker 与本方案不冲突 |
 | 离线包与源码版本错位 | MANIFEST.md 记录 git commit 与构建时间，升级前核对 |
