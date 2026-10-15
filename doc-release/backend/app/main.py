@@ -2,10 +2,11 @@ import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.routing import Match
 from sqlalchemy import select
 
 import seed_sample_repo
@@ -68,21 +69,38 @@ def register_static(app: FastAPI, static_dir: Path) -> None:
     if assets_dir.is_dir():
         app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
-    # catch-all 会拦截 Starlette 的尾斜杠重定向，这里对已知 API 路径补偿该行为
-    api_paths = {getattr(route, "path", "") for route in app.routes}
+    # catch-all 会拦截 Starlette 的尾斜杠重定向，这里用框架真实路由匹配补偿该行为
+    # （include_router 生成的路由无 path 属性，不能用路径字符串白名单）
+    def _matches_other_route(path: str, method: str) -> bool:
+        scope = {"type": "http", "path": path, "method": method, "headers": []}
+        for route in app.routes:
+            if getattr(route, "path", None) == "/{full_path:path}":
+                continue
+            match, _child = route.matches(scope)
+            if match != Match.NONE:
+                return True
+        return False
 
-    @app.api_route("/{full_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
-    async def spa_fallback(full_path: str):
+    @app.api_route(
+        "/{full_path:path}",
+        methods=["GET", "HEAD", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+        include_in_schema=False,
+    )
+    async def spa_fallback(request: Request, full_path: str):
         if full_path == "api" or full_path.startswith("api/"):
             if full_path.endswith("/"):
                 target = "/" + full_path.rstrip("/")
-                if target in api_paths:
-                    return RedirectResponse(target, status_code=307)
+                if _matches_other_route(target, request.method):
+                    query = request.scope.get("query_string", b"")
+                    location = target + (f"?{query.decode('latin-1')}" if query else "")
+                    return RedirectResponse(location, status_code=307)
             return JSONResponse({"detail": "Not Found"}, status_code=404)
-        candidate = (static_dir / full_path).resolve()
-        if full_path and candidate.is_file() and candidate.is_relative_to(static_dir.resolve()):
-            return FileResponse(candidate)
-        return FileResponse(static_dir / "index.html")
+        if request.method in ("GET", "HEAD"):
+            candidate = (static_dir / full_path).resolve()
+            if full_path and candidate.is_file() and candidate.is_relative_to(static_dir.resolve()):
+                return FileResponse(candidate)
+            return FileResponse(static_dir / "index.html")
+        return JSONResponse({"detail": "Not Found"}, status_code=404)
 
 
 register_static(app, Path(settings.static_dir))

@@ -1,7 +1,7 @@
 """静态托管与 SPA 回退：部署形态下由后端同端口服务前端产物。"""
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from app.main import register_static
@@ -78,22 +78,88 @@ async def test_path_escape_cannot_read_outside(tmp_path):
     assert "TOP-SECRET" not in resp.text
 
 
-async def test_api_trailing_slash_keeps_redirect(tmp_path):
-    """已有 API 路径带尾斜杠仍保持 Starlette 原生 307 重定向行为（catch-all 不吞掉）。"""
+def _make_api_app(static_dir: Path) -> FastAPI:
+    """模拟真实业务路由结构（include_router + 动态参数），验证尾斜杠补偿。"""
+    app = FastAPI()
+    router = APIRouter()
+
+    @router.get("/api/repos")
+    async def list_repos():
+        return []
+
+    @router.post("/api/repos")
+    async def create_repo():
+        return {}
+
+    @router.delete("/api/repos/{repo_id}")
+    async def delete_repo(repo_id: int):
+        return {}
+
+    @router.get("/api/repos/{repo_id}/preview")
+    async def preview(repo_id: int):
+        return {}
+
+    app.include_router(router)
+    register_static(app, static_dir)
+    return app
+
+
+async def test_api_trailing_slash_included_router(tmp_path):
+    """include_router 注册的业务路径带尾斜杠仍保持原生 307（白名单方式无法覆盖此场景）。"""
     static_dir = tmp_path / "static"
     _write_index(static_dir)
-    app = FastAPI()
-
-    @app.get("/api/health")
-    async def health():
-        return {"status": "ok"}
-
-    register_static(app, static_dir)
+    app = _make_api_app(static_dir)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
-        resp = await c.get("/api/health/", follow_redirects=False)
+        resp = await c.get("/api/repos/", follow_redirects=False)
     assert resp.status_code == 307
-    assert resp.headers["location"].endswith("/api/health")
+    assert resp.headers["location"].endswith("/api/repos")
+
+
+async def test_api_trailing_slash_keeps_query_and_params(tmp_path):
+    """动态参数路径 + 查询串：307 重定向需保留两者。"""
+    static_dir = tmp_path / "static"
+    _write_index(static_dir)
+    app = _make_api_app(static_dir)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        resp = await c.get("/api/repos/1/preview/?base=a&head=b", follow_redirects=False)
+    assert resp.status_code == 307
+    assert resp.headers["location"].endswith("/api/repos/1/preview?base=a&head=b")
+
+
+async def test_api_trailing_slash_non_get_methods(tmp_path):
+    """POST/DELETE 带尾斜杠也保持 307，不被 GET/HEAD catch-all 压成 405。"""
+    static_dir = tmp_path / "static"
+    _write_index(static_dir)
+    app = _make_api_app(static_dir)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        post_resp = await c.post("/api/repos/", follow_redirects=False)
+        del_resp = await c.delete("/api/repos/1/", follow_redirects=False)
+    assert post_resp.status_code == 307
+    assert post_resp.headers["location"].endswith("/api/repos")
+    assert del_resp.status_code == 307
+    assert del_resp.headers["location"].endswith("/api/repos/1")
+
+
+async def test_api_trailing_slash_unknown_stays_404(tmp_path):
+    """去尾斜杠后也无路由命中的路径仍为 404 JSON。"""
+    static_dir = tmp_path / "static"
+    _write_index(static_dir)
+    app = _make_api_app(static_dir)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        resp = await c.get("/api/nope/", follow_redirects=False)
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "Not Found"}
+
+
+async def test_real_app_trailing_slash(client):
+    """真实应用的 include_router 路由同样保持 307（回归门禁）。"""
+    resp = await client.get("/api/repos/", follow_redirects=False)
+    assert resp.status_code == 307
+    assert resp.headers["location"].endswith("/api/repos")
 
 
 async def test_head_index(tmp_path):
