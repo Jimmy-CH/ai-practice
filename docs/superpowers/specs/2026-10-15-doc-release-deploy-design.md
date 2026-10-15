@@ -19,11 +19,11 @@ doc-release（释文）为 FastAPI 后端 + Vue 3 前端的全栈工具，依赖
 | 交付方式 | 离线包上传（scp/堡垒机），不依赖部署机访问外网/PyPI/GitHub |
 | 服务形态 | 方案 A：FastAPI 单端口同源托管（uvicorn 直接服务前端 dist + API + SSE） |
 | 否决方案 | nginx 前置反代（SSE 缓冲配置易踩坑、多一组件、对内网单机工具过度设计）；Docker（用户排除） |
-| Python 版本 | **3.10**（用户指定）。已核验：全部依赖 `Requires-Python` ≤ 3.10（tree_sitter 0.26.0、fastapi 0.141.1、pytest 9.1.1、pydantic_core 等均为 ≥3.10）；后端代码无 3.11+ 语法（tomllib/StrEnum/except* 等零命中） |
+| Python 版本 | **3.11.11**（用户指定）。已核验：全部依赖 `Requires-Python` 下限 ≤ 3.10（tree_sitter 0.26.0、fastapi 0.141.1、pytest 9.1.1、pydantic_core 等），3.11 满足全部下限；开发环境同为 3.11.x，行为一致 |
 | 端口 | 8000（与开发后端一致，可改 systemd unit 中 `--port`） |
 | 认证 | 无（首期非目标，内网使用） |
 
-派生约束：开发机为 Python 3.11，但**新代码与新依赖不得要求 >3.10**；引入新依赖时核对 `Requires-Python`。
+派生约束：开发与部署统一 Python 3.11；引入新依赖时核对 `Requires-Python` ≤ 3.11。
 
 ## 3. 部署架构与目录布局
 
@@ -50,7 +50,7 @@ doc-release（释文）为 FastAPI 后端 + Vue 3 前端的全栈工具，依赖
 ```
 
 进程模型：systemd 管理单个 uvicorn 进程，监听 `0.0.0.0:8000`，同端口服务页面、API、SSE。
-运行时前置：Python 3.10、git（示例仓库生成与"注册本地仓库"功能都需要）、内网可达星语网关。
+运行时前置：Python 3.11.11、git（示例仓库生成与“注册本地仓库”功能都需要）、内网可达星语网关。
 单 worker 即可：流水线为 asyncio 异步 + `asyncio.to_thread`，SQLite 与本地 git 仓库路径均为单机形态。
 
 ## 4. 代码改动（唯一侵入点，约 15 行）
@@ -74,28 +74,28 @@ doc-release（释文）为 FastAPI 后端 + Vue 3 前端的全栈工具，依赖
 docrelease-offline-YYYYMMDD/
 ├── backend/          # 后端源码；排除 venv/ docrelease.db/ archive/ sample_repo/ __pycache__/ .env
 ├── static/           # 前端 npm run build 产物（含 vue-tsc --noEmit 类型检查）
-├── wheels/           # Linux 平台离线 wheel（对应 Python 3.10）
+├── wheels/           # Linux 平台离线 wheel（对应 Python 3.11）
 ├── deploy/           # install.sh + docrelease.service + env.template
 └── MANIFEST.md       # 版本、构建时间、源码 git commit、内容清单
 ```
 
 **wheel 平台坑（重点）**：Windows 上 `pip download` 默认只拉 `win_amd64` wheel，直接装 Linux 必失败。两条构建路径：
 
-1. **首选：WSL 打包**——WSL 内用 Python 3.10 `pip download -r requirements.txt -d wheels`，平台天然匹配；
+1. **首选：WSL 打包**——WSL 内用 Python 3.11 `pip download -r requirements.txt -d wheels`，平台天然匹配；
 2. **备选：Windows 指定平台下载**——
-   `pip download -r requirements.txt -d wheels --platform manylinux2014_x86_64 --python-version 3.10 --only-binary=:all:`。
+   `pip download -r requirements.txt -d wheels --platform manylinux2014_x86_64 --python-version 3.11 --only-binary=:all:`。
 
-构建后必须验证：`wheels/` 中 `tree_sitter`（abi3）、`tree_sitter_language_pack`（cp310-abi3）、
-`pydantic_core`（cp310 manylinux）等含二进制扩展的包均为 Linux 平台 wheel；若个别包缺 wheel，回落 WSL 路径。
+构建后必须验证：`wheels/` 中 `tree_sitter`（abi3）、`tree_sitter_language_pack`（abi3）、
+`pydantic_core`（cp311 manylinux）等含二进制扩展的包均为 Linux 平台 wheel；若个别包缺 wheel，回落 WSL 路径。
 
 打包脚本 `deploy/build_offline_package.ps1`（源码位置 `doc-release/deploy/`，开发机执行）：构建前端 → 收集源码 → 下载 wheel → 生成 MANIFEST → 输出 zip。
 
 ## 6. 部署机安装流程（install.sh：安装与升级同一入口）
 
-1. 前置检查：`python3.10` 存在、`git` 存在、`curl` 探测星语网关（不通仅警告，不阻断——允许先装后通网）；
+1. 前置检查：`python3.11` 存在、`git` 存在、`curl` 探测星语网关（不通仅警告，不阻断——允许先装后通网）；
 2. rsync `backend/` → `/opt/docrelease/backend/`，排除 `venv/ .env docrelease.db archive/ sample_repo/ static/`；
 3. rsync `static/` → `/opt/docrelease/backend/static/`；
-4. venv 不存在则 `python3.10 -m venv venv`；
+4. venv 不存在则 `python3.11 -m venv venv`；
 5. `venv/bin/pip install --no-index --find-links /opt/docrelease/wheels -r requirements.txt`；
    安装成功后 `wheels/` 可删除，再次升级重跑 install.sh 时由新包重建；
 6. `.env` 不存在则从 `env.template` 初始化（存在则不动，保留现场配置）；
@@ -161,7 +161,7 @@ WantedBy=multi-user.target
 | 风险/约束 | 应对 |
 | --- | --- |
 | tree-sitter 系 wheel 在目标平台缺失 | 构建时清单校验；缺则回落 WSL 打包路径 |
-| 部署机 Python 版本漂移（装成 3.8/3.12） | install.sh 显式检查 `python3.10`，缺失即失败并提示安装命令 |
+| 部署机 Python 版本漂移（装成 3.8/3.12 等） | install.sh 显式检查 `python3.11`，缺失即失败并提示安装命令 |
 | 星语网关不可达（网段/防火墙） | install.sh 探测告警；运行期 LLM 步骤失败/降级已在流水线内处理 |
 | 8000 端口被占 | 安装前 `ss -ltn` 检查；改端口只动 unit 一处 |
 | uvicorn 单进程性能上限 | 内网单工具够用；将来加 nginx 前置 + 多 worker 与本方案不冲突 |

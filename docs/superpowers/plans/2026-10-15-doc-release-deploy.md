@@ -15,7 +15,7 @@
 **注意（执行环境）：**
 - 工作区根：`D:\StudyProjects\ai-practice`，shell 为 PowerShell；git 操作在仓库根执行
 - PowerShell 下 `git commit -m` 消息含中文/括号时必须用**单引号**包裹
-- 后端命令一律用 `doc-release\backend\venv\Scripts\python.exe`（已有 venv，Python 3.11 开发环境；部署目标 3.10，代码不得用 >3.10 语法——已核验现有代码合规）
+- 后端命令一律用 `doc-release\backend\venv\Scripts\python.exe`（已有 venv，Python 3.11 开发环境；部署目标 **3.11.11** 与开发同大版本，已核验全部依赖 `Requires-Python` 下限 ≤3.10）
 
 ---
 
@@ -256,7 +256,7 @@ WantedBy=multi-user.target
 ```powershell
 cd doc-release
 .\deploy\build_offline_package.ps1                    # 默认：pip --platform 下载 manylinux wheel
-.\deploy\build_offline_package.ps1 -WheelSource wsl   # 备选：WSL 内 Python 3.10 下载（platform 法缺 wheel 时用）
+.\deploy\build_offline_package.ps1 -WheelSource wsl   # 备选：WSL 内 Python 3.11 下载（platform 法缺 wheel 时用）
 ```
 
 产物：`out/docrelease-offline-<日期>.zip`。脚本自动校验：wheels 中不得出现 win_amd64 包；
@@ -271,7 +271,7 @@ sudo unzip docrelease-offline-<日期>.zip -d /opt/docrelease/packages/
 
 ## 三、安装 / 升级（同一入口）
 
-前置：`python3.10`、`git`、`rsync`。星语网关不通仅警告，不阻断安装。
+前置：`python3.11`、`git`、`rsync`。星语网关不通仅警告，不阻断安装。
 
 ```bash
 cd /opt/docrelease/packages/docrelease-offline-<日期>/deploy
@@ -280,7 +280,7 @@ sudo bash install.sh
 ```
 
 脚本行为：前置检查 → rsync 源码与 static（排除 venv/.env/db/archive/sample_repo，现场数据保留）→
-venv 缺失则创建（Python 3.10）→ 离线安装依赖 → .env 缺失则从模板初始化 → 安装并重启 systemd 服务 → 健康检查。
+venv 缺失则创建（Python 3.11）→ 离线安装依赖 → .env 缺失则从模板初始化 → 安装并重启 systemd 服务 → 健康检查。
 
 ## 四、部署后验证清单
 
@@ -340,7 +340,7 @@ log() { echo "[install] $*"; }
 die() { echo "[install][ERROR] $*" >&2; exit 1; }
 
 # ---- 1. 前置检查 ----
-command -v python3.10 >/dev/null || die "缺少 python3.10，请先安装（如 apt install python3.10）"
+command -v python3.11 >/dev/null || die "缺少 python3.11，请先安装（如 apt install python3.11）"
 command -v git >/dev/null || die "缺少 git：示例仓库生成与『注册本地仓库』功能依赖它"
 command -v rsync >/dev/null || die "缺少 rsync"
 if curl -sS --max-time 5 -o /dev/null "$XINGYU_URL"; then
@@ -376,11 +376,11 @@ if [ -f "$PKG_ROOT/MANIFEST.md" ]; then cp -f "$PKG_ROOT/MANIFEST.md" "$DEPLOY_R
 # ---- 4. venv 与离线依赖 ----
 VENV_PY="$DEPLOY_ROOT/backend/venv/bin/python"
 if [ ! -x "$VENV_PY" ]; then
-  python3.10 -m venv "$DEPLOY_ROOT/backend/venv"
+  python3.11 -m venv "$DEPLOY_ROOT/backend/venv"
   log "已创建 venv"
 fi
-"$VENV_PY" -c 'import sys; sys.exit(0 if sys.version_info[:2] == (3, 10) else 1)' \
-  || die "venv Python 版本不是 3.10，请删除 $DEPLOY_ROOT/backend/venv 后重跑"
+"$VENV_PY" -c 'import sys; sys.exit(0 if sys.version_info[:2] == (3, 11) else 1)' \
+  || die "venv Python 版本不是 3.11，请删除 $DEPLOY_ROOT/backend/venv 后重跑"
 "$VENV_PY" -m pip install --no-index \
   --find-links "$DEPLOY_ROOT/wheels" -r "$DEPLOY_ROOT/backend/requirements.txt"
 
@@ -484,7 +484,7 @@ if ($WheelSource -eq "wsl") {
 } else {
     & $PythonCmd -m pip download -r $req -d (Join-Path $outDir "wheels") `
         --platform manylinux2014_x86_64 --platform manylinux_2_28_x86_64 `
-        --python-version 3.10 --implementation cp --only-binary=:all:
+        --python-version 3.11 --implementation cp --only-binary=:all:
     if ($LASTEXITCODE -ne 0) { throw "wheel 下载失败；个别包缺 manylinux wheel 时改用 -WheelSource wsl" }
 }
 
@@ -505,7 +505,7 @@ if ($dirty) { Write-Warning "工作区有未提交改动，MANIFEST 记录的 co
     "# DocRelease 离线包",
     "- 构建时间：$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')",
     "- 源码 commit：$commit",
-    "- wheel 来源：$WheelSource（目标 Python 3.10 / manylinux）",
+    "- wheel 来源：$WheelSource（目标 Python 3.11 / manylinux）",
     "- 包结构：backend/（后端源码）static/（前端产物）wheels/（离线依赖）deploy/（安装脚手架）",
     "- 部署：解压后在包内 deploy/ 执行 sudo bash install.sh（详见 deploy/README.md）"
 ) | Set-Content (Join-Path $outDir "MANIFEST.md") -Encoding utf8
@@ -539,7 +539,7 @@ cd D:\StudyProjects\ai-practice\doc-release
 - `out\docrelease-offline-*\static\index.html` 存在；
 - `MANIFEST.md` 含当前 git commit。
 
-若 platform 模式因个别包缺 manylinux wheel 失败：改用 `.\deploy\build_offline_package.ps1 -WheelSource wsl`（需 WSL 内已装 Python 3.10）。
+若 platform 模式因个别包缺 manylinux wheel 失败：改用 `.\deploy\build_offline_package.ps1 -WheelSource wsl`（需 WSL 内已装 Python 3.11）。
 
 - [ ] **Step 4: 提交**
 
