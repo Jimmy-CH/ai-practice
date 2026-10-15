@@ -83,3 +83,11 @@ def test_trace_mask_masks_commit_and_paths():
     data = json.loads(r.render_trace(RESULT, {"tone": "business", "mask": True}))
     assert data["range"]["commit"] == "abc****"
     assert data["features"][0]["paths"] == ["…/export/stream.ts"]
+
+
+def test_trace_mask_hides_signal_paths():
+    data = json.loads(r.render_trace(RESULT, {"tone": "business", "mask": True}))
+    assert data["contractSignals"][0]["path"] == "…/legacy/order.go"
+    assert data["contractSignals"][0]["message"].startswith("接口路径")
+    open_data = json.loads(r.render_trace(RESULT, {"tone": "business", "mask": False}))
+    assert open_data["contractSignals"][0]["path"] == "api/legacy/order.go"

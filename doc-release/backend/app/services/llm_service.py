@@ -50,6 +50,22 @@ def extract_json(text: str) -> dict:
     raise ValueError("JSON 括号不配平")
 
 
+def validate_payload(data) -> None:
+    """校验 LLM 输出结构：features 必须为对象数组且每项含非空 title。"""
+    if not isinstance(data, dict):
+        raise ValueError("输出不是 JSON 对象")
+    features = data.get("features")
+    if not isinstance(features, list):
+        raise ValueError("features 必须是数组")
+    for f in features:
+        if not isinstance(f, dict):
+            raise ValueError("features 元素必须是对象")
+        if not str(f.get("title") or "").strip():
+            raise ValueError("功能点缺少非空 title")
+    if data.get("highlights") is not None and not isinstance(data.get("highlights"), list):
+        raise ValueError("highlights 必须是数组")
+
+
 def build_chunks(changeset: dict, max_files: int = 8, max_lines: int = 600) -> list[dict]:
     """按模块聚类分块；单块超限时按文件继续拆（同名追加序号）。"""
     files_by_path = {f["path"]: f for f in changeset["files"]}
@@ -107,24 +123,32 @@ async def _chat_deepseek(system_prompt: str, user_prompt: str) -> str:
         return resp.json()["choices"][0]["message"]["content"]
 
 
-async def _rewrite_chunk(chunk: dict, sem: asyncio.Semaphore, system_prompt: str) -> dict:
+async def _rewrite_chunk(chunk: dict, sem: asyncio.Semaphore, system_prompt: str,
+                         cancel_check=None) -> dict:
     user_prompt = build_user_prompt(chunk)
     async with sem:
         last_error = ""
         for attempt in (1, 2):
+            # 取消检查须在每次 LLM 调用前执行，避免已取消的任务继续等待并发配额
+            if cancel_check is not None and cancel_check():
+                raise RunCancelled("运行已取消")
             try:
                 prompt = user_prompt
                 if attempt == 2:
                     prompt += "\n\n注意：只输出 JSON 对象本身，不要任何解释文字。"
                 text = await _chat(system_prompt, prompt)
-                return {"ok": True, "chunk": chunk, "data": extract_json(text), "output": text}
+                data = extract_json(text)
+                validate_payload(data)
+                return {"ok": True, "chunk": chunk, "data": data, "output": text}
+            except RunCancelled:
+                raise  # 取消不是失败，不得进入重试
             except Exception as exc:  # noqa: BLE001 —— 解析/请求失败均重试一次
                 last_error = str(exc)
         return {"ok": False, "chunk": chunk, "error": last_error or "未知错误"}
 
 
 async def rewrite_changes(changeset: dict, cancel_check=None) -> dict:
-    """把变更集改写为功能点结构；cancel_check 在分块启动前检查（取消生效点）。"""
+    """把变更集改写为功能点结构；取消在分块启动前与每次 LLM 调用前生效。"""
     chunks = build_chunks(changeset)
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(glossary=glossary_svc.build_glossary_prompt_section())
     sem = asyncio.Semaphore(max(1, settings.llm_max_concurrency))
@@ -132,8 +156,15 @@ async def rewrite_changes(changeset: dict, cancel_check=None) -> dict:
     for c in chunks:
         if cancel_check is not None and cancel_check():
             raise RunCancelled("运行已取消")
-        tasks.append(asyncio.create_task(_rewrite_chunk(c, sem, system_prompt)))
-    results = await asyncio.gather(*tasks)
+        tasks.append(asyncio.create_task(_rewrite_chunk(c, sem, system_prompt, cancel_check)))
+    try:
+        results = await asyncio.gather(*tasks)
+    except RunCancelled:
+        # 单块取消即整体取消：终止其余分块并等待退出，避免任务悬挂
+        for t in tasks:
+            t.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        raise
     return merge_results(results, changeset)
 
 

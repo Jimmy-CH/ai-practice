@@ -86,8 +86,12 @@ const csvBody = computed(() => csvRows.value.slice(1))
 const mdHtml = computed(() => (activeKind.value === 'document' && content.value ? renderMarkdown(content.value) : ''))
 const jsonText = computed(() => (activeKind.value === 'trace' && content.value ? formatJson(content.value) : ''))
 
+// 产物加载时序守卫：口径/运行快速连点时丢弃过期响应，防旧内容覆盖新渲染
+let loadSeq = 0
+
 async function load() {
   const run = runStore.current
+  const seq = ++loadSeq
   if (!run || !run.artifacts?.length) {
     content.value = ''
     loadError.value = ''
@@ -96,12 +100,15 @@ async function load() {
   loading.value = true
   loadError.value = ''
   try {
-    content.value = await getArtifactText(run.id, activeKind.value, store.tone, store.mask)
+    const text = await getArtifactText(run.id, activeKind.value, store.tone, store.mask)
+    if (seq !== loadSeq) return   // 已有更新的加载请求，丢弃过期响应
+    content.value = text
   } catch (err) {
+    if (seq !== loadSeq) return
     content.value = ''
     loadError.value = extractError(err)
   } finally {
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
 }
 

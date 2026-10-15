@@ -32,11 +32,24 @@ def test_system_prompt_renders_glossary():
 def test_build_user_prompt_includes_symbols_and_signals():
     chunk = {"name": "src/report", "files": [{
         "path": "src/report/export/index.ts", "status": "m", "added": 5, "removed": 2,
-        "symbols_summary": "新增 1、删除 0、修改 0",
+        "ast": {"language": "typescript", "degraded": False,
+                "symbols": {"added": [{"name": "streamWrite", "kind": "function"}],
+                            "removed": [],
+                            "changed": [{"name": "write", "before": "write(a)",
+                                         "after": "write(a, b)"}]}},
         "contract_signals": [{"message": "常量 X 由 1 变为 2"}],
         "lines": [{"t": "add", "s": "const a = 1;"}], "truncated": False}]}
     prompt = build_user_prompt(chunk)
     assert "src/report/export/index.ts" in prompt
-    assert "符号变更：新增 1、删除 0、修改 0" in prompt
+    assert "符号变更：新增：streamWrite（function）；签名变化：write（write(a) → write(a, b)）" in prompt
     assert "契约信号：常量 X 由 1 变为 2" in prompt
     assert "+const a = 1;" in prompt
+
+
+def test_build_user_prompt_degraded_file_has_hint():
+    chunk = {"name": "src", "files": [{
+        "path": "src/data.bin", "status": "m", "added": 1, "removed": 1,
+        "ast": {"language": None, "degraded": True, "symbols": {}, "contract_signals": []},
+        "contract_signals": [], "lines": [], "truncated": False}]}
+    prompt = build_user_prompt(chunk)
+    assert "未解析到符号级" in prompt

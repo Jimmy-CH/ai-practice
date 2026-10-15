@@ -80,7 +80,17 @@ export const useRunStore = defineStore('run', {
         if (result) this.result = result
         this.progress = 100
         this.closeStream()
+        // done 事件不含 artifacts，拉取完整详情补齐产物列表，终态后产物面板立即可渲染
+        void this.refreshDetail()
       }
+    },
+    async refreshDetail() {
+      const id = this.current?.id
+      if (!id) return
+      const detail = await api.getRun(id)
+      if (this.current?.id !== id) return   // 已切换运行，丢弃过期结果
+      this.current = detail
+      if (detail.result) this.result = detail.result
     },
     connect(runId: string) {
       this.handle = subscribeRun(

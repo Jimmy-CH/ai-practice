@@ -17,6 +17,8 @@ from app.services.errors import GitError
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
 _ACTIVE_STATUSES = ("pending", "running")
+# 查重与插入须原子进行，否则并发请求可同时通过查重、绕过 409
+_create_lock = asyncio.Lock()
 _KIND_META = {
     "checklist": ("checklist.csv", "text/csv; charset=utf-8"),
     "document": ("product-doc.md", "text/markdown; charset=utf-8"),
@@ -50,25 +52,26 @@ async def create_run(payload: RunCreate, db: AsyncSession = Depends(get_db)) -> 
     except GitError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    dup = (await db.execute(
-        select(Run).where(Run.repo_id == payload.repo_id,
-                         Run.base_ref == payload.base_ref,
-                         Run.head_ref == payload.head_ref,
-                         Run.status.in_(_ACTIVE_STATUSES)))).scalars().first()
-    if dup is not None:
-        raise HTTPException(status_code=409, detail="相同范围已有运行中的任务")
+    async with _create_lock:
+        dup = (await db.execute(
+            select(Run).where(Run.repo_id == payload.repo_id,
+                             Run.base_ref == payload.base_ref,
+                             Run.head_ref == payload.head_ref,
+                             Run.status.in_(_ACTIVE_STATUSES)))).scalars().first()
+        if dup is not None:
+            raise HTTPException(status_code=409, detail="相同范围已有运行中的任务")
 
-    run = Run(
-        repo_id=payload.repo_id,
-        base_ref=payload.base_ref,
-        head_ref=payload.head_ref,
-        version_label=(payload.version_label or "").strip() or payload.head_ref,
-        tone=payload.tone,
-        mask=payload.mask,
-    )
-    run.steps = blank_steps()
-    db.add(run)
-    await db.commit()
+        run = Run(
+            repo_id=payload.repo_id,
+            base_ref=payload.base_ref,
+            head_ref=payload.head_ref,
+            version_label=(payload.version_label or "").strip() or payload.head_ref,
+            tone=payload.tone,
+            mask=payload.mask,
+        )
+        run.steps = blank_steps()
+        db.add(run)
+        await db.commit()
     await db.refresh(run)
 
     asyncio.create_task(pipeline_service.execute_run(run.id))
@@ -123,6 +126,8 @@ async def run_events(run_id: str, db: AsyncSession = Depends(get_db)) -> Streami
     async def gen():
         queue = pipeline_service.bus.subscribe(run_id)
         try:
+            # 订阅后再刷新一次 DB，消除「订阅前已终态但读到旧数据」的快照丢失窗口
+            await db.refresh(run)
             snapshot = _build_snapshot(run, pipeline_service.get_live_state(run_id))
             seen = {(l.get("ts"), l.get("tag"), l.get("message")) for l in snapshot.get("logs", [])}
             yield _sse("snapshot", {"run": snapshot})

@@ -24,6 +24,21 @@ def _paths(f: dict, mask: bool) -> list[str]:
     return [(_mask_path(p) if mask else p) for p in (f.get("paths") or [])]
 
 
+def _mask_signals(signals: list, mask: bool) -> list:
+    """脱敏时对契约信号中的文件路径应用掩码，与功能点 paths 口径一致。"""
+    if not mask:
+        return signals
+    out = []
+    for sig in signals or []:
+        if not isinstance(sig, dict):
+            continue
+        s = dict(sig)
+        if s.get("path"):
+            s["path"] = _mask_path(s["path"])
+        out.append(s)
+    return out
+
+
 def _explain(f: dict, tone: str) -> str:
     return f.get("tech", "") if tone == "tech" else f.get("biz", "")
 
@@ -187,7 +202,7 @@ def render_trace(result: dict, opts: dict, sizes: dict | None = None) -> str:
              "paths": _paths(f, mask)}
             for i, f in enumerate(result.get("features", []), start=1)
         ],
-        "contractSignals": result.get("contractSignals", []),
+        "contractSignals": _mask_signals(result.get("contractSignals", []), mask),
         "lowConfidence": result.get("lowConfidence", []),
         "artifacts": [
             {"kind": "checklist", "file": "checklist.csv", "bytes": sizes.get("checklist", 0)},

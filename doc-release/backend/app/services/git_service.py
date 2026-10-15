@@ -4,6 +4,7 @@
 """
 
 import os
+import re
 import subprocess
 from datetime import date
 from pathlib import Path
@@ -117,6 +118,21 @@ def _split_patch(patch: str, max_lines: int) -> tuple[list[dict], bool]:
     return lines, truncated
 
 
+_RENAME_BRACE = re.compile(r"^(.*)\{(.*) => (.*)\}(.*)$")
+
+
+def _split_rename(raw: str) -> tuple[str, str]:
+    """解析 git rename 路径：src/{a.ts => b.ts}（带公共前后缀）或 a.ts => b.ts。"""
+    m = _RENAME_BRACE.match(raw)
+    if m:
+        prefix, old, new, suffix = m.groups()
+        return (prefix + old + suffix), (prefix + new + suffix)
+    if " => " in raw:
+        old, new = raw.split(" => ", 1)
+        return old, new
+    return raw, raw
+
+
 def cluster_modules(files: list[dict], depth: int = 2) -> list[dict]:
     groups: dict[str, list[str]] = {}
     for f in files:
@@ -151,7 +167,8 @@ def collect_diff(repo_path: str, base: str, head: str, max_lines: int = 400) -> 
     for line in name_status.splitlines():
         parts = line.split("\t")
         if len(parts) >= 2:
-            statuses[parts[-1]] = {"A": "a", "D": "d"}.get(parts[0][:1], "m")
+            _, new_path = _split_rename(parts[-1])
+            statuses[new_path] = {"A": "a", "D": "d"}.get(parts[0][:1], "m")
 
     files: list[dict] = []
     total_add = total_del = 0
@@ -159,7 +176,8 @@ def collect_diff(repo_path: str, base: str, head: str, max_lines: int = 400) -> 
         parts = line.split("\t")
         if len(parts) < 3:
             continue
-        added_raw, del_raw, path = parts[0], parts[1], parts[2]
+        old_path, path = _split_rename(parts[2])
+        added_raw, del_raw = parts[0], parts[1]
         binary = added_raw == "-"
         added = 0 if binary else int(added_raw)
         removed = 0 if binary else int(del_raw)
@@ -168,6 +186,8 @@ def collect_diff(repo_path: str, base: str, head: str, max_lines: int = 400) -> 
         entry = {"status": statuses.get(path, "m"), "path": path,
                  "added": added, "removed": removed, "binary": binary,
                  "truncated": False, "lines": []}
+        if old_path != path:
+            entry["old_path"] = old_path
         if not binary and len(files) < _MAX_FILES:
             patch = _run_git(repo_path, ["diff", "-U3", f"{base}..{head}", "--", path])
             entry["lines"], entry["truncated"] = _split_patch(patch, max_lines)

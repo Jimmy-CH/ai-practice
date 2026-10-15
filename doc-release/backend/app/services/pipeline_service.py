@@ -11,6 +11,7 @@ from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
+from sqlalchemy import update
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.config import settings
@@ -233,7 +234,9 @@ async def execute_run(run_id: str) -> None:
                         f["ast"] = None
                         f["contract_signals"] = []
                         continue
-                    base_src = (git_service.show_file(repo.path, run.base_ref, f["path"])
+                    # 重命名文件需从旧路径读基线内容
+                    base_src = (git_service.show_file(repo.path, run.base_ref,
+                                                      f.get("old_path") or f["path"])
                                 if f["status"] != "a" else "")
                     head_src = (git_service.show_file(repo.path, run.head_ref, f["path"])
                                 if f["status"] != "d" else "")
@@ -277,6 +280,8 @@ async def execute_run(run_id: str) -> None:
 
             outcome = await _run_step(run_id, run, state, db, 3, step4)
 
+            written_holder: dict = {}
+
             async def step5():
                 meta = {
                     "runId": run.id,
@@ -309,6 +314,7 @@ async def execute_run(run_id: str) -> None:
                 })
                 files = {"checklist.csv": checklist, "product-doc.md": document, "trace.json": trace}
                 written = archive_service.write_artifacts(_archive_root, run.version_label, files)
+                written_holder.update(written)
                 for kind, filename in (("checklist", "checklist.csv"),
                                        ("document", "product-doc.md"),
                                        ("trace", "trace.json")):
@@ -320,6 +326,23 @@ async def execute_run(run_id: str) -> None:
                 return result
 
             result = await _run_step(run_id, run, state, db, 4, step5)
+
+            # 步骤 5 渲染 trace 时第 5 步自身仍是 active，trace.pipeline 会恒记 ok:false；
+            # 此处所有步骤已结束，重算 pipeline 并重写 trace.json，保证归档与事实一致
+            result["meta"]["pipeline"] = [{"name": s["name"], "ok": s["status"] == "done",
+                                           "ms": s.get("duration_ms", 0)} for s in state["steps"]]
+            opts = {"tone": run.tone, "mask": run.mask}
+            checklist = renderers.render_checklist(result, opts)
+            document = renderers.render_document(result, opts)
+            trace, _sizes = renderers.render_trace_stable(result, opts, base_sizes={
+                "checklist": len(checklist.encode("utf-8")),
+                "document": len(document.encode("utf-8")),
+            })
+            trace_path = written_holder["trace.json"]
+            trace_path.write_text(trace, encoding="utf-8", newline="")
+            await db.execute(update(Artifact)
+                             .where(Artifact.run_id == run.id, Artifact.kind == "trace")
+                             .values(bytes=trace_path.stat().st_size))
 
             final_status = "degraded" if outcome["lowConfidence"] else "succeeded"
             state["status"] = final_status
@@ -333,6 +356,7 @@ async def execute_run(run_id: str) -> None:
             flag_modified(run, "logs")
             run.stats = changeset["stats"]
             run.result = result
+            flag_modified(run, "result")
             run.finished_at = datetime.utcnow()
             await db.commit()
             bus.publish(run_id, {"event": "progress", "data": {"percent": 100}})
@@ -343,3 +367,7 @@ async def execute_run(run_id: str) -> None:
         except Exception as exc:  # noqa: BLE001 —— 运行失败需完整落库并广播
             logger.exception("运行 %s 失败", run_id)
             await _finish_failed(db, run, state, run_id, exc)
+        finally:
+            # 终态后清理内存态，避免长进程累积；此后 get_live_state 返回 None，快照走 DB
+            _live_states.pop(run_id, None)
+            _cancelled.discard(run_id)

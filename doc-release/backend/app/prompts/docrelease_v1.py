@@ -27,6 +27,29 @@ SYSTEM_PROMPT_TEMPLATE = """你是发布文档生成系统（DocRelease）的业
 """
 
 _STATUS_LABELS = {"a": "新增", "m": "修改", "d": "删除"}
+_KIND_LABELS = {"added": "新增", "changed": "签名变化", "removed": "删除"}
+
+
+def _symbols_summary(f: dict) -> str:
+    """把 tree-sitter 符号对比压成提示词摘要；无有效 AST 时返回空串。"""
+    ast = f.get("ast")
+    if not isinstance(ast, dict) or ast.get("degraded"):
+        return ""
+    parts: list[str] = []
+    for kind in ("added", "changed", "removed"):
+        items = (ast.get("symbols") or {}).get(kind) or []
+        if not items:
+            continue
+        if kind == "changed":
+            text = "；".join(f"{it['name']}（{it.get('before', '')} → {it.get('after', '')}）"
+                             for it in items[:6])
+        else:
+            text = "、".join(f"{it['name']}（{it['kind']}）" for it in items[:10])
+        parts.append(f"{_KIND_LABELS[kind]}：{text}")
+    summary = "；".join(parts)
+    if len(summary) > 800:
+        summary = summary[:800] + "…"
+    return summary
 
 
 def build_user_prompt(chunk: dict) -> str:
@@ -34,8 +57,11 @@ def build_user_prompt(chunk: dict) -> str:
     for f in chunk["files"]:
         label = _STATUS_LABELS.get(f["status"], "修改")
         lines.append(f"## 文件 {f['path']}（{label}，+{f['added']}/-{f['removed']}）")
-        if f.get("symbols_summary"):
-            lines.append(f"符号变更：{f['symbols_summary']}")
+        summary = _symbols_summary(f)
+        if summary:
+            lines.append(f"符号变更：{summary}")
+        elif f.get("ast") is not None and f["ast"].get("degraded"):
+            lines.append("符号变更：（未解析到符号级，按 diff 理解）")
         for sig in f.get("contract_signals", []):
             lines.append(f"契约信号：{sig['message']}")
         lines.append("```diff")

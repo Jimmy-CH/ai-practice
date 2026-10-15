@@ -1,3 +1,4 @@
+import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 
 /** 解析带 BOM 的 CSV 文本为二维数组，支持引号转义与字段内逗号。 */
@@ -50,7 +51,7 @@ export function formatJson(text: string): string {
   }
 }
 
-/** Markdown 渲染为 HTML。 */
+/** Markdown 渲染为 HTML（经 DOMPurify 净化，防产物内嵌脚本注入）。 */
 export function renderMarkdown(md: string): string {
-  return marked.parse(md) as string
+  return DOMPurify.sanitize(marked.parse(md) as string)
 }

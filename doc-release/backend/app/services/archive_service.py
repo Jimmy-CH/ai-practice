@@ -7,7 +7,12 @@ from app.services.errors import ServiceError
 
 
 def archive_dir_for(archive_root: Path, version: str) -> Path:
-    return Path(archive_root) / "docs" / "release" / version
+    """归档目录；版本号经 resolve 校验，拒绝越出归档根（防路径穿越）。"""
+    root = (Path(archive_root) / "docs" / "release").resolve()
+    target = (root / version).resolve()
+    if target == root or not target.is_relative_to(root):
+        raise ServiceError(f"非法的归档版本号：{version}")
+    return target
 
 
 def write_artifacts(archive_root: Path, version: str, files: dict[str, str]) -> dict[str, Path]:
@@ -34,7 +39,10 @@ def write_artifacts(archive_root: Path, version: str, files: dict[str, str]) -> 
 
 def delete_archive_if_owned(archive_root: Path, version: str, run_id: str) -> bool:
     """删除归档目录，但仅当 trace.json.runId 与目标运行一致（防误删同版本归档）。"""
-    target = archive_dir_for(archive_root, version)
+    try:
+        target = archive_dir_for(archive_root, version)
+    except ServiceError:
+        return False
     trace_path = target / "trace.json"
     if not trace_path.exists():
         return False
@@ -44,8 +52,13 @@ def delete_archive_if_owned(archive_root: Path, version: str, run_id: str) -> bo
         return False
     if data.get("runId") != run_id:
         return False
-    for child in target.iterdir():
+    # 只清理受管产物文件；目录内其他文件保留，目录本身尽力删除
+    for filename in ("checklist.csv", "product-doc.md", "trace.json"):
+        child = target / filename
         if child.is_file():
             child.unlink()
-    target.rmdir()
+    try:
+        target.rmdir()
+    except OSError:
+        pass
     return True

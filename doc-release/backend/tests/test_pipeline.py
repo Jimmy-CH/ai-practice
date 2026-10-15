@@ -68,6 +68,8 @@ async def test_execute_run_success(work_repo, db_session, archive_root):
     assert (target / "product-doc.md").exists()
     trace = json.loads((target / "trace.json").read_text(encoding="utf-8"))
     assert trace["runId"] == run.id
+    assert all(p["ok"] for p in trace["pipeline"])   # 终局重算后五步全 ok
+    assert pipeline_service.get_live_state(run.id) is None  # 终态后清理内存态
     assert {a["kind"]: a["bytes"] for a in trace["artifacts"]} == {
         "checklist": (target / "checklist.csv").stat().st_size,
         "document": (target / "product-doc.md").stat().st_size,

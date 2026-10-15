@@ -29,6 +29,10 @@ onMounted(async () => {
     if (lastRun) {
       try {
         await runStore.attach(lastRun)
+        if (runStore.current) {
+          // 用运行参数还原控制条与变更预览，避免恢复后控制条与产物不一致
+          await store.alignToRun(runStore.current)
+        }
       } catch {
         localStorage.removeItem('docrelease:lastRun')
       }

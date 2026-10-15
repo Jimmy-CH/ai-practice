@@ -2,7 +2,7 @@ import pytest
 
 from app.services import git_service
 from app.services.errors import GitError
-from tests.gitfix import commit, init_repo, tag, write_files
+from tests.gitfix import commit, git, init_repo, tag, write_files
 
 
 @pytest.fixture
@@ -64,3 +64,22 @@ def test_collect_diff_truncates(repo):
 def test_show_file(repo):
     assert "const A = 1" in git_service.show_file(str(repo), "v1.0.0", "src/a.ts")
     assert git_service.show_file(str(repo), "v1.0.0", "src/missing.ts") == ""
+
+
+def test_split_rename_variants():
+    assert git_service._split_rename("src/{a.ts => b.ts}") == ("src/a.ts", "src/b.ts")
+    assert git_service._split_rename("old/{x/y.ts => z/y.ts}") == ("old/x/y.ts", "old/z/y.ts")
+    assert git_service._split_rename("a.ts => b.ts") == ("a.ts", "b.ts")
+    assert git_service._split_rename("src/plain.ts") == ("src/plain.ts", "src/plain.ts")
+
+
+def test_collect_diff_expands_rename(repo):
+    git(repo, "mv", "src/a.ts", "src/renamed.ts")
+    commit(repo, "rename a", date="2026-08-23 09:00:00 +0800")
+    tag(repo, "v1.2.0")
+    data = git_service.collect_diff(str(repo), "v1.1.0", "v1.2.0")
+    assert len(data["files"]) == 1
+    f = data["files"][0]
+    assert f["path"] == "src/renamed.ts"
+    assert f.get("old_path") == "src/a.ts"
+    assert f["added"] == 0 and f["removed"] == 0

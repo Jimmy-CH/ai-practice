@@ -89,6 +89,29 @@ async def test_rewrite_partial_failure_keeps_success(monkeypatch):
     assert any(f["title"] == "另一个模块的功能点" for f in out["features"])
 
 
+def test_validate_payload_accepts_valid():
+    llm_service.validate_payload({"features": [{"title": "T"}], "highlights": []})
+    llm_service.validate_payload({"features": [], "confidence": 0.5})
+
+
+def test_validate_payload_rejects_bad_shapes():
+    for bad in ([], {"features": {}}, {"features": ["x"]},
+                {"features": [{"title": ""}]},
+                {"features": [], "highlights": "x"}):
+        with pytest.raises(ValueError):
+            llm_service.validate_payload(bad)
+
+
+async def test_rewrite_degrades_on_invalid_shape(monkeypatch):
+    async def bad_shape(system, user):
+        return json.dumps({"features": {"title": "不是数组"}})
+
+    monkeypatch.setattr(llm_service, "_chat", bad_shape)
+    out = await llm_service.rewrite_changes(_changeset([_file("src/a/x.ts")]))
+    assert out["all_failed"] is True
+    assert out["features"][0]["title"].endswith("变更待人工确认")
+
+
 async def test_contract_signals_enter_highlights(monkeypatch):
     async def fake_chat(system, user):
         return json.dumps({"features": [{"title": "T", "biz": "b", "tech": "t"}],
