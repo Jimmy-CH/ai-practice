@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 
@@ -68,9 +68,16 @@ def register_static(app: FastAPI, static_dir: Path) -> None:
     if assets_dir.is_dir():
         app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
-    @app.get("/{full_path:path}", include_in_schema=False)
+    # catch-all 会拦截 Starlette 的尾斜杠重定向，这里对已知 API 路径补偿该行为
+    api_paths = {getattr(route, "path", "") for route in app.routes}
+
+    @app.api_route("/{full_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
     async def spa_fallback(full_path: str):
         if full_path == "api" or full_path.startswith("api/"):
+            if full_path.endswith("/"):
+                target = "/" + full_path.rstrip("/")
+                if target in api_paths:
+                    return RedirectResponse(target, status_code=307)
             return JSONResponse({"detail": "Not Found"}, status_code=404)
         candidate = (static_dir / full_path).resolve()
         if full_path and candidate.is_file() and candidate.is_relative_to(static_dir.resolve()):

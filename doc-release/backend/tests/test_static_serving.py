@@ -78,6 +78,34 @@ async def test_path_escape_cannot_read_outside(tmp_path):
     assert "TOP-SECRET" not in resp.text
 
 
+async def test_api_trailing_slash_keeps_redirect(tmp_path):
+    """已有 API 路径带尾斜杠仍保持 Starlette 原生 307 重定向行为（catch-all 不吞掉）。"""
+    static_dir = tmp_path / "static"
+    _write_index(static_dir)
+    app = FastAPI()
+
+    @app.get("/api/health")
+    async def health():
+        return {"status": "ok"}
+
+    register_static(app, static_dir)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        resp = await c.get("/api/health/", follow_redirects=False)
+    assert resp.status_code == 307
+    assert resp.headers["location"].endswith("/api/health")
+
+
+async def test_head_index(tmp_path):
+    """静态入口支持 HEAD 请求（与 /assets 文件行为一致）。"""
+    static_dir = tmp_path / "static"
+    _write_index(static_dir)
+    async with _make_client(static_dir) as c:
+        resp = await c.head("/")
+    assert resp.status_code == 200
+    assert resp.content == b""
+
+
 async def test_dev_mode_root_still_404(client):
     """仓库内无 backend/static/ 时，全局 app 的 / 保持 404（开发模式回归）。"""
     resp = await client.get("/")
