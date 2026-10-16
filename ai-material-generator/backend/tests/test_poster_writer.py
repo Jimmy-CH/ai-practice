@@ -172,3 +172,22 @@ async def test_poster_image_crud_and_to_dict(db_session):
     assert await poster_svc.list_poster_images(db_session, 2, "标题T", "网点管理员") == []
     await poster_svc.delete_poster_image(db_session, got)
     assert await poster_svc.get_poster_image_by_id(db_session, image.id) is None
+
+
+@pytest.mark.asyncio
+async def test_refine_poster_prompt_composes_messages_and_strips(monkeypatch):
+    from app.services import poster_writer
+
+    captured = {}
+
+    async def fake_chat(messages):
+        captured["messages"] = messages
+        return "  一只橙猫坐在草地上，扁平插画风格，阳光明媚  "
+
+    monkeypatch.setattr(poster_writer.material_writer, "_chat", fake_chat)
+    result = await poster_writer.refine_poster_prompt("# 网点管家升级海报\n卖点：一键上报")
+    assert result == "一只橙猫坐在草地上，扁平插画风格，阳光明媚"
+    assert captured["messages"][0]["role"] == "system"
+    assert "视觉设计" in captured["messages"][0]["content"]
+    assert "海报脚本" in captured["messages"][1]["content"]
+    assert "一键上报" in captured["messages"][1]["content"]
