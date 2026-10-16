@@ -51,3 +51,39 @@ async def refine_prompt_endpoint(
         raise HTTPException(status_code=502, detail=f"画面描述提炼失败: {exc}") from exc
     saved = await poster_svc.upsert_poster_prompt(db, user.id, script_hash, description)
     return {"prompt": saved.prompt, "cached": False}
+
+
+@router.post("/images")
+async def create_image_endpoint(
+    data: PosterImageCreate,
+    user: UserOut = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_editor(user)
+    if not data.prompt.strip():
+        raise HTTPException(status_code=400, detail="画面描述为空")
+    try:
+        _, image_bytes = await poster_writer.generate_poster_image(data.prompt)
+        file_path = poster_writer.save_poster_image(user.id, image_bytes)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"海报图生成失败: {exc}") from exc
+    try:
+        saved = await poster_svc.create_poster_image(
+            db, user.id, data.source_title, data.audience, data.prompt,
+            file_path, len(image_bytes),
+        )
+    except Exception:
+        poster_writer.remove_poster_image(file_path)  # 入库失败回滚，不留孤儿文件
+        raise
+    return saved.to_dict()
+
+
+@router.get("/images")
+async def list_images_endpoint(
+    source_title: str,
+    audience: str,
+    user: UserOut = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    images = await poster_svc.list_poster_images(db, user.id, source_title, audience)
+    return [image.to_dict() for image in images]
