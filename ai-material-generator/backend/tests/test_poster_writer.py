@@ -191,3 +191,58 @@ async def test_refine_poster_prompt_composes_messages_and_strips(monkeypatch):
     assert "视觉设计" in captured["messages"][0]["content"]
     assert "海报脚本" in captured["messages"][1]["content"]
     assert "一键上报" in captured["messages"][1]["content"]
+
+
+PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"0" * 32
+
+
+@pytest.mark.asyncio
+async def test_generate_poster_image_downloads_and_validates(monkeypatch):
+    from app.services import poster_writer
+
+    async def fake_url(prompt):
+        return "http://oss/img.png"
+
+    class FakeResp:
+        status_code = 200
+        content = PNG_BYTES
+
+    monkeypatch.setattr(poster_writer, "generate_poster_image_url", fake_url)
+    monkeypatch.setattr(poster_writer.requests, "get", lambda url, timeout: FakeResp())
+    url, data = await poster_writer.generate_poster_image("橙猫草地")
+    assert url == "http://oss/img.png"
+    assert data == PNG_BYTES
+
+
+@pytest.mark.asyncio
+async def test_generate_poster_image_rejects_non_png(monkeypatch):
+    from app.services import poster_writer
+
+    async def fake_url(prompt):
+        return "http://oss/img.png"
+
+    class FakeResp:
+        status_code = 200
+        content = b"<html>not an image</html>"
+
+    monkeypatch.setattr(poster_writer, "generate_poster_image_url", fake_url)
+    monkeypatch.setattr(poster_writer.requests, "get", lambda url, timeout: FakeResp())
+    try:
+        await poster_writer.generate_poster_image("p")
+        assert False, "非 PNG 应抛 RuntimeError"
+    except RuntimeError as exc:
+        assert "PNG" in str(exc)
+
+
+def test_save_and_remove_poster_image(tmp_path, monkeypatch):
+    from app.services import poster_writer
+
+    monkeypatch.setattr(poster_writer, "POSTER_IMAGE_DIR", tmp_path / "poster_images")
+    rel_path = poster_writer.save_poster_image(7, PNG_BYTES)
+    assert rel_path.replace("\\", "/").startswith("poster_images/7/")
+    absolute = tmp_path / rel_path
+    assert absolute.is_file() and absolute.read_bytes() == PNG_BYTES
+    # 删除（含不存在路径不报错）
+    poster_writer.remove_poster_image(rel_path)
+    assert not absolute.exists()
+    poster_writer.remove_poster_image(rel_path)
