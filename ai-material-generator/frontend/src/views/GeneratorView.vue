@@ -6,6 +6,7 @@ import { parseDocument, generateMaterial, generateAllMaterials, updateGeneratedM
 import { saveFromGeneration, submitMaterial, listMaterials, downloadMaterial } from '@/api/materials'
 import { updateAnalysis, type AnalysisUpdatePayload } from '@/api/analysis'
 import { renderMarkdown } from '@/utils/markdown'
+import { copyToClipboard } from '@/utils/clipboard'
 import { Upload, Search, DocumentCopy, Download, Document, DocumentChecked, Warning, CircleCheck, RefreshRight, Refresh, Edit } from '@element-plus/icons-vue'
 
 const title = ref('网点管家 V3.2.0 版本迭代说明')
@@ -184,10 +185,15 @@ async function doGenerateAll() {
   }
 }
 
-function copyContent() {
+async function copyContent() {
   if (!currentMaterial.value) return
-  navigator.clipboard.writeText(currentMaterial.value.content)
-  ElMessage.success('已复制')
+  // 内网 HTTP 部署下 navigator.clipboard 不可用，需降级到 execCommand（见 utils/clipboard.ts）
+  const ok = await copyToClipboard(currentMaterial.value.content)
+  if (ok) {
+    ElMessage.success('已复制')
+  } else {
+    ElMessage.error('复制失败，请手动选择文本复制')
+  }
 }
 
 async function refreshReviewStatus() {
