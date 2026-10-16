@@ -406,8 +406,10 @@ async function regenerate() {
         </div>
       </div>
 
-      <div class="step-badge">1</div>
-      <h2 class="step-title">输入文档</h2>
+      <div class="step-header">
+        <div class="step-badge">1</div>
+        <h2 class="step-title">输入文档</h2>
+      </div>
 
       <el-input v-model="title" placeholder="请输入文档标题" class="input-title" />
 
@@ -667,8 +669,9 @@ async function regenerate() {
 .brand-icon { width: 40px; height: 40px; background: #7b2cbf; color: #fff; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 24px; }
 .brand-title { margin: 0; font-size: 18px; color: #303133; }
 .brand-subtitle { margin: 4px 0 0; font-size: 12px; color: #909399; }
-.step-badge { width: 28px; height: 28px; background: #7b2cbf; color: #fff; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; margin-bottom: 8px; }
-.step-title { margin: 0 0 16px; font-size: 16px; }
+.step-header { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+.step-badge { width: 28px; height: 28px; background: #7b2cbf; color: #fff; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; }
+.step-title { margin: 0; font-size: 16px; }
 .input-title { margin-bottom: 12px; }
 .uploader { margin-bottom: 12px; }
 .uploader :deep(.el-upload-dragger) { width: 100%; padding: 24px; }
