@@ -8,9 +8,10 @@ $outDir = Join-Path $root "out\materialgen-package-$stamp"
 if (Test-Path $outDir) { $outDir = "$outDir-$(Get-Date -Format 'HHmmss')" }
 Write-Host "[build] 输出目录：$outDir"
 
-# 1. 前端构建
+# 1. 前端构建（PS 5.1 下 npm 的 stderr 在重定向下会包装成 ErrorRecord，
+#    配合 Stop 偏好会误杀构建；经 cmd /c 在 cmd 层合并流后，成败以 $LASTEXITCODE 为准）
 Push-Location (Join-Path $root "frontend")
-try { npm run build } finally { Pop-Location }
+try { cmd /c "npm run build 2>&1" } finally { Pop-Location }
 if ($LASTEXITCODE -ne 0) { throw "前端构建失败" }
 
 # 2. 目录骨架
