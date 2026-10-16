@@ -457,6 +457,7 @@ async function doGeneratePoster() {
       prompt: posterPrompt.value,
     })
     ElMessage.success('海报图已生成')
+    posterDialogVisible.value = false
     await loadPosterImages()
   } catch (e: any) {
     ElMessage.error(e.response?.data?.detail || '海报图生成失败')
