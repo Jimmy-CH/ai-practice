@@ -4,7 +4,7 @@ from pathlib import Path
 from fastapi import APIRouter, FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from app.main import register_static
+from app.static_serving import register_static
 
 
 def _make_client(static_dir: Path) -> AsyncClient:

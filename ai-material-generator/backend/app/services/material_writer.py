@@ -61,7 +61,11 @@ async def _chat_deepseek(messages: list[dict]) -> str:
 
 async def _chat(messages: list[dict]) -> str:
     if settings.llm_provider == "xingyu":
-        system_prompt = "你是一名资深运营文案。"
+        # 优先取调用方传入的 system 人设；无 system 消息时保留历史默认
+        system_prompt = next(
+            (m["content"] for m in messages if m.get("role") == "system"),
+            "你是一名资深运营文案。",
+        )
         user_prompt = messages[-1]["content"] if messages else ""
         return await generate_by_xingyu(system_prompt, user_prompt)
     return await _chat_deepseek(messages)

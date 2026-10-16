@@ -26,6 +26,12 @@
   PUT    /api/analyses/{analysis_id}            更新解析结果
 生成物料 generated_materials
   PUT    /api/generated-materials/{id}          编辑已生成物料内容
+海报配图 posters
+  POST   /api/posters/prompt                   海报脚本提炼画面描述（owner+脚本哈希缓存）
+  POST   /api/posters/images                   生成海报图并本地转存（editor）
+  GET    /api/posters/images                   当前用户指定来源+受众的图片列表
+  GET    /api/posters/images/{id}/file         取回图片文件（本人）
+  DELETE /api/posters/images/{id}              删除图片记录与文件（本人）
 生成器 generator
   POST   /api/parse                             解析文档（正文/.docx），后台预热生成
   POST   /api/generate                          生成单种物料（命中缓存直接返回）
@@ -41,6 +47,7 @@ from app.api.auth import router as auth_router
 from app.api.generated_materials import router as generated_materials_router
 from app.api.generator import router as generator_router
 from app.api.materials import router as materials_router
+from app.api.posters import router as posters_router
 
 health_router = APIRouter()
 
@@ -58,3 +65,4 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(analyses_router, prefix="/api/analyses")
     app.include_router(generated_materials_router, prefix="/api/generated-materials")
     app.include_router(generator_router, prefix="/api")
+    app.include_router(posters_router, prefix="/api/posters")
