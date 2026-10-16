@@ -80,10 +80,11 @@ const downloadHint = computed(() => {
   return '请先点击「刷新审核状态」查询审核结果'
 })
 
-function onFileChange(raw: any) {
-  const list = raw?.fileList || raw
-  if (list && list.length > 0) {
-    file.value = list[0].raw || list[0]
+// el-upload change 签名为 (uploadFile: UploadFile, uploadFiles: UploadFile[])，
+// 取当前文件的 raw（原生 File）作为待上传文件
+function onFileChange(uploadFile: any) {
+  if (uploadFile?.raw) {
+    file.value = uploadFile.raw
   }
 }
 
