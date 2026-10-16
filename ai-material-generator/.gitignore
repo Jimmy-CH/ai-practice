@@ -37,3 +37,4 @@ backend/static/
 # OS
 .DS_Store
 Thumbs.db
+backend/poster_images/

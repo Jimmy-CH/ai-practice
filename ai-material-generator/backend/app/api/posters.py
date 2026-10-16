@@ -3,7 +3,10 @@
 权限：提炼与生图仅 editor（沿用 get_current_user + 函数体判 role 的既有模式，
 勿用返回 Pydantic 模型的自定义依赖，会被并入请求体 schema 导致 422）。
 """
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -87,3 +90,32 @@ async def list_images_endpoint(
 ):
     images = await poster_svc.list_poster_images(db, user.id, source_title, audience)
     return [image.to_dict() for image in images]
+
+
+@router.get("/images/{image_id}/file")
+async def get_image_file_endpoint(
+    image_id: int,
+    user: UserOut = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    image = await poster_svc.get_poster_image_by_id(db, image_id)
+    if image is None or image.owner_id != user.id:
+        raise HTTPException(status_code=404, detail="图片不存在")
+    absolute = Path(poster_writer.POSTER_IMAGE_DIR.parent / image.file_path)
+    if not absolute.is_file():
+        raise HTTPException(status_code=404, detail="图片文件缺失")
+    return FileResponse(absolute, media_type="image/png", filename=f"poster-{image_id}.png")
+
+
+@router.delete("/images/{image_id}")
+async def delete_image_endpoint(
+    image_id: int,
+    user: UserOut = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    image = await poster_svc.get_poster_image_by_id(db, image_id)
+    if image is None or image.owner_id != user.id:
+        raise HTTPException(status_code=404, detail="图片不存在")
+    await poster_svc.delete_poster_image(db, image)
+    poster_writer.remove_poster_image(image.file_path)
+    return {"ok": True}

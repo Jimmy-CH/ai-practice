@@ -117,7 +117,7 @@ async def test_create_poster_image_502_on_generation_error(client, editor_token,
 
 
 @pytest.mark.asyncio
-async def test_list_poster_images_owner_and_combo_isolated(client, editor_token, monkeypatch, tmp_path):
+async def test_list_poster_images_owner_and_combo_isolated(client, editor_token, reviewer_token, monkeypatch, tmp_path):
     _mock_poster_generation(monkeypatch, tmp_path)
     for title, audience in [("T1", "网点管理员"), ("T1", "业务员"), ("T2", "网点管理员")]:
         await client.post(
@@ -141,3 +141,43 @@ async def test_list_poster_images_owner_and_combo_isolated(client, editor_token,
         headers=AUTH(reviewer_token),
     )
     assert r2.json() == []
+
+
+@pytest.mark.asyncio
+async def test_image_file_access_owner_only(client, editor_token, reviewer_token, monkeypatch, tmp_path):
+    _mock_poster_generation(monkeypatch, tmp_path)
+    r = await client.post(
+        "/api/posters/images",
+        json={"source_title": "T", "audience": "A", "prompt": "p"},
+        headers=AUTH(editor_token),
+    )
+    image_id = r.json()["id"]
+    # 本人可取文件，内容与魔数一致
+    r_ok = await client.get(f"/api/posters/images/{image_id}/file", headers=AUTH(editor_token))
+    assert r_ok.status_code == 200
+    assert r_ok.headers["content-type"] == "image/png"
+    assert r_ok.content == PNG_BYTES
+    # 他人 404；不存在 404；未登录 401
+    assert (await client.get(f"/api/posters/images/{image_id}/file", headers=AUTH(reviewer_token))).status_code == 404
+    assert (await client.get("/api/posters/images/99999/file", headers=AUTH(editor_token))).status_code == 404
+    assert (await client.get(f"/api/posters/images/{image_id}/file")).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_delete_poster_image_removes_record_and_file(client, editor_token, reviewer_token, monkeypatch, tmp_path):
+    _mock_poster_generation(monkeypatch, tmp_path)
+    r = await client.post(
+        "/api/posters/images",
+        json={"source_title": "T", "audience": "A", "prompt": "p"},
+        headers=AUTH(editor_token),
+    )
+    image_id = r.json()["id"]
+    # 他人不能删
+    r_forbidden = await client.delete(f"/api/posters/images/{image_id}", headers=AUTH(reviewer_token))
+    assert r_forbidden.status_code == 404
+    # 本人删除后记录与文件都消失
+    r_del = await client.delete(f"/api/posters/images/{image_id}", headers=AUTH(editor_token))
+    assert r_del.status_code == 200
+    assert (await client.get(f"/api/posters/images/{image_id}/file", headers=AUTH(editor_token))).status_code == 404
+    matches = list((tmp_path / "poster_images").rglob("*.png"))
+    assert matches == []
