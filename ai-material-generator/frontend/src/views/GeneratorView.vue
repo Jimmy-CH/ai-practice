@@ -4,6 +4,14 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { AnalysisResult, Material } from '../api/client'
 import { parseDocument, generateMaterial, generateAllMaterials, updateGeneratedMaterial } from '../api/client'
 import { saveFromGeneration, submitMaterial, listMaterials, downloadMaterial } from '@/api/materials'
+import {
+  refinePosterPrompt,
+  createPosterImage,
+  listPosterImages,
+  deletePosterImage,
+  fetchPosterImageFile,
+  type PosterImage,
+} from '@/api/posters'
 import { updateAnalysis, type AnalysisUpdatePayload } from '@/api/analysis'
 import { renderMarkdown } from '@/utils/markdown'
 import { copyToClipboard } from '@/utils/clipboard'
@@ -394,6 +402,121 @@ async function regenerate() {
     loading.value = false
   }
 }
+
+// —— 海报配图（仅 poster_script 物料显示）——
+const posterDialogVisible = ref(false)
+const posterPreviewVisible = ref(false)
+const posterPrompt = ref('')
+const posterPromptCached = ref(false)
+const posterRefining = ref(false)
+const posterGenerating = ref(false)
+const posterImages = ref<PosterImage[]>([])
+const posterImagesLoading = ref(false)
+const posterThumbUrls = ref<Record<number, string>>({})
+const posterPreviewUrl = ref('')
+
+const isPosterScript = computed(
+  () => activeMaterialType.value === 'poster_script' && !!currentMaterial.value,
+)
+
+watch(isPosterScript, (visible) => {
+  if (visible) loadPosterImages()
+})
+
+async function openPosterDialog() {
+  posterDialogVisible.value = true
+  posterRefining.value = true
+  try {
+    const res = await refinePosterPrompt(currentMaterial.value!.content)
+    posterPrompt.value = res.data.prompt
+    posterPromptCached.value = res.data.cached
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '画面描述提炼失败')
+  } finally {
+    posterRefining.value = false
+  }
+}
+
+async function doGeneratePoster() {
+  if (!posterPrompt.value.trim()) {
+    ElMessage.warning('请先填写画面描述')
+    return
+  }
+  posterGenerating.value = true
+  try {
+    await createPosterImage({
+      source_title: title.value,
+      audience: audience.value,
+      prompt: posterPrompt.value,
+    })
+    ElMessage.success('海报图已生成')
+    await loadPosterImages()
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '海报图生成失败')
+  } finally {
+    posterGenerating.value = false
+  }
+}
+
+async function loadPosterImages() {
+  posterImagesLoading.value = true
+  try {
+    const res = await listPosterImages(title.value, audience.value)
+    posterImages.value = res.data
+    // 文件接口需 Authorization，<img> 直连不可行，逐张取 blob 生成预览地址
+    for (const img of posterImages.value) {
+      if (!posterThumbUrls.value[img.id]) {
+        try {
+          const blobRes = await fetchPosterImageFile(img.id)
+          posterThumbUrls.value[img.id] = URL.createObjectURL(blobRes.data)
+        } catch {
+          // 单张取图失败不阻塞列表
+        }
+      }
+    }
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '海报图列表加载失败')
+  } finally {
+    posterImagesLoading.value = false
+  }
+}
+
+function openPreview(img: PosterImage) {
+  if (posterPreviewUrl.value) URL.revokeObjectURL(posterPreviewUrl.value)
+  posterPreviewUrl.value = posterThumbUrls.value[img.id] || ''
+  posterPreviewVisible.value = true
+}
+
+async function doDownloadPoster(img: PosterImage) {
+  try {
+    const res = await fetchPosterImageFile(img.id)
+    const url = URL.createObjectURL(res.data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `poster-${img.id}.png`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch {
+    ElMessage.error('海报图下载失败')
+  }
+}
+
+async function doDeletePoster(img: PosterImage) {
+  try {
+    await ElMessageBox.confirm('删除后不可恢复，确认删除该海报图？', '删除海报图', { type: 'warning' })
+  } catch {
+    return
+  }
+  try {
+    await deletePosterImage(img.id)
+    URL.revokeObjectURL(posterThumbUrls.value[img.id] || '')
+    delete posterThumbUrls.value[img.id]
+    posterImages.value = posterImages.value.filter((i) => i.id !== img.id)
+    ElMessage.success('已删除')
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '删除失败')
+  }
+}
 </script>
 
 <template>
@@ -658,7 +781,66 @@ async function regenerate() {
         </div>
 
         <el-empty v-else description="点击「重新解析文档」生成物料" />
+
+        <div v-if="isPosterScript" class="poster-section">
+          <div class="poster-header">
+            <span class="poster-title">海报配图</span>
+            <el-button type="primary" size="small" :loading="posterRefining" @click="openPosterDialog">
+              生成海报图
+            </el-button>
+          </div>
+          <p class="poster-hint">根据海报脚本提炼画面描述并生成配图（约 15 秒/张），图片仅本人可见</p>
+          <div v-loading="posterImagesLoading" class="poster-grid">
+            <el-empty
+              v-if="!posterImages.length && !posterImagesLoading"
+              description="暂无海报图"
+              :image-size="60"
+            />
+            <div v-for="img in posterImages" :key="img.id" class="poster-card">
+              <img
+                v-if="posterThumbUrls[img.id]"
+                :src="posterThumbUrls[img.id]"
+                class="poster-thumb"
+                @click="openPreview(img)"
+              />
+              <div class="poster-card-actions">
+                <el-button text size="small" @click="doDownloadPoster(img)">下载</el-button>
+                <el-button text size="small" type="danger" @click="doDeletePoster(img)">删除</el-button>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
+
+      <el-dialog v-model="posterDialogVisible" title="海报配图" width="560px">
+        <div v-loading="posterRefining">
+          <p class="poster-dialog-tip">
+            画面描述由 AI 从海报脚本提炼<template v-if="posterPromptCached">（命中缓存）</template>，可编辑后生成：
+          </p>
+          <el-input
+            v-model="posterPrompt"
+            type="textarea"
+            :rows="5"
+            placeholder="正在提炼画面描述…"
+          />
+          <p class="poster-dialog-warn">生成约需 15 秒；图片为 PNG，仅生成者本人可见，可多次生成挑选</p>
+        </div>
+        <template #footer>
+          <el-button @click="posterDialogVisible = false">取消</el-button>
+          <el-button
+            type="primary"
+            :loading="posterGenerating"
+            :disabled="posterRefining || !posterPrompt.trim()"
+            @click="doGeneratePoster"
+          >
+            {{ posterGenerating ? '生成中…' : '生成海报图' }}
+          </el-button>
+        </template>
+      </el-dialog>
+
+      <el-dialog v-model="posterPreviewVisible" title="海报预览" width="720px">
+        <img v-if="posterPreviewUrl" :src="posterPreviewUrl" class="poster-preview-img" />
+      </el-dialog>
     </main>
   </div>
 </template>
@@ -751,4 +933,15 @@ async function regenerate() {
   width: 100%;
   margin-top: 8px;
 }
+.poster-section { margin-top: 16px; border-top: 1px dashed #ebeef5; padding-top: 16px; }
+.poster-header { display: flex; justify-content: space-between; align-items: center; }
+.poster-title { font-weight: 600; font-size: 14px; color: #303133; }
+.poster-hint { color: #909399; font-size: 12px; margin: 8px 0 12px; }
+.poster-grid { display: flex; flex-wrap: wrap; gap: 12px; min-height: 60px; }
+.poster-card { width: 140px; border: 1px solid #ebeef5; border-radius: 8px; padding: 8px; }
+.poster-thumb { width: 100%; height: 100px; object-fit: cover; border-radius: 6px; cursor: zoom-in; display: block; }
+.poster-card-actions { display: flex; justify-content: space-between; margin-top: 4px; }
+.poster-preview-img { width: 100%; display: block; }
+.poster-dialog-tip { font-size: 13px; color: #606266; margin: 0 0 8px; }
+.poster-dialog-warn { font-size: 12px; color: #e6a23c; margin: 8px 0 0; }
 </style>
