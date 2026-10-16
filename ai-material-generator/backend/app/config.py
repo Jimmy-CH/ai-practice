@@ -7,12 +7,15 @@ class Settings(BaseSettings):
         env_file=".env" if Path(".env").exists() else None,
         env_file_encoding="utf-8",
     )
-    deepseek_api_key: str
+    llm_provider: str = "xingyu"  # "xingyu" | "deepseek"
+    log_level: str = "INFO"  # DEBUG/INFO/WARNING/ERROR
+    deepseek_api_key: str | None = None
     deepseek_base_url: str = "https://api.deepseek.com"
     deepseek_model: str = "deepseek-chat"
     secret_key: str = "dev-secret-key-change-in-production"
     access_token_expire_minutes: int = 1440
     algorithm: str = "HS256"
+    static_dir: str = "static"
 
 
 settings = Settings()

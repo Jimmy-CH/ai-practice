@@ -27,6 +27,7 @@ api.interceptors.response.use(
 )
 
 export interface AnalysisResult {
+  analysis_id?: number
   title: string
   '新增功能': string[]
   '变更与优化': string[]
@@ -35,6 +36,7 @@ export interface AnalysisResult {
 }
 
 export interface Material {
+  id?: number
   title: string
   content: string
   audience: string
@@ -44,15 +46,30 @@ export interface Material {
     material_type: string
     generator: string
   }
+  cached?: boolean
 }
 
-export async function parseDocument(title: string, content: string, file?: File): Promise<AnalysisResult> {
+export interface GeneratedMaterial {
+  id: number
+  owner_id: number
+  source_title: string
+  audience: string
+  material_type: string
+  content: string
+  created_at?: string
+  updated_at?: string
+}
+
+export async function parseDocument(title: string, content: string, file?: File, audience?: string): Promise<AnalysisResult> {
   const form = new FormData()
   form.append('title', title)
   if (file) {
     form.append('file', file)
   } else {
     form.append('content', content)
+  }
+  if (audience) {
+    form.append('audience', audience)
   }
   const response = await api.post('/parse', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
@@ -85,6 +102,14 @@ export async function generateAllMaterials(
     analysis,
     audience,
   })
+  return response.data
+}
+
+export async function updateGeneratedMaterial(
+  id: number,
+  content: string,
+): Promise<GeneratedMaterial> {
+  const response = await api.put(`/generated-materials/${id}`, { content })
   return response.data
 }
 

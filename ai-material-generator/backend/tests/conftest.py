@@ -23,6 +23,21 @@ async def db_session():
     await engine.dispose()
 
 
+@pytest.fixture(autouse=True)
+def isolate_pregenerate_session(db_session, monkeypatch):
+    """后台预热必须复用测试会话，禁止触碰真实 materials.db。"""
+    from app.api import generator as generator_module
+
+    class _SessionCM:
+        async def __aenter__(self):
+            return db_session
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+    monkeypatch.setattr(generator_module, "AsyncSessionLocal", lambda: _SessionCM())
+
+
 @pytest_asyncio.fixture(scope="function")
 async def client(db_session):
     async def override_get_db():

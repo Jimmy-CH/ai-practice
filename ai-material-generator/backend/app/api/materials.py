@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,7 +10,16 @@ from app.schemas.material import MaterialCreate, MaterialOut, MaterialUpdate, Re
 from app.api.auth import get_current_user
 from app.services import material_service as svc
 
+logger = logging.getLogger("app.api.materials")
+
 router = APIRouter(prefix="/materials", tags=["materials"])
+
+
+def _material_out(asset: MaterialAsset, reviewer_username: str | None = None) -> MaterialOut:
+    """构造响应：ORM 对象无 reviewer_username 属性，列表端点额外填充审核人用户名。"""
+    data = MaterialOut.model_validate(asset)
+    data.reviewer_username = reviewer_username
+    return data
 
 
 @router.get("", response_model=list[MaterialOut])
@@ -18,7 +29,8 @@ async def list_materials(
     db: AsyncSession = Depends(get_db),
 ):
     owner_id = user.id if user.role == "editor" else None
-    return await svc.list_materials(db, owner_id=owner_id, status=status)
+    rows = await svc.list_materials(db, owner_id=owner_id, status=status)
+    return [_material_out(asset, username) for asset, username in rows]
 
 
 @router.get("/pending", response_model=list[MaterialOut])
@@ -28,7 +40,8 @@ async def pending_list(
 ):
     if user.role != "reviewer":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="需要 reviewer 角色")
-    return await svc.list_materials(db, status="pending_review")
+    rows = await svc.list_materials(db, status="pending_review")
+    return [_material_out(asset, username) for asset, username in rows]
 
 
 @router.get("/approved", response_model=list[MaterialOut])
@@ -36,7 +49,8 @@ async def approved_list(
     user: UserOut = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    return await svc.list_materials(db, status="approved")
+    rows = await svc.list_materials(db, status="approved")
+    return [_material_out(asset, username) for asset, username in rows]
 
 
 @router.get("/{material_id}", response_model=MaterialOut)
@@ -133,9 +147,14 @@ async def review_material(
     if not asset:
         raise HTTPException(status_code=404, detail="资产不存在")
     try:
-        return await svc.review_material(db, asset, action)
+        updated = await svc.review_material(db, asset, action, user.id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    logger.info(
+        "review material id=%s action=%s reviewer=%s(%s) comment=%r",
+        updated.id, action.action, user.id, user.username, updated.review_comment,
+    )
+    return updated
 
 
 @router.get("/{material_id}/download")

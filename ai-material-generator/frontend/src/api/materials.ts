@@ -8,6 +8,9 @@ export interface Material {
   audience: string
   status: string
   review_comment: string | null
+  reviewed_by: number | null
+  reviewed_at: string | null
+  reviewer_username: string | null
   created_at: string
   updated_at: string
 }

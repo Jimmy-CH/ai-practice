@@ -163,3 +163,6 @@ app.db
 
 chroma_db/
 logs/
+
+# doc-release 离线部署包构建产物
+doc-release/out/

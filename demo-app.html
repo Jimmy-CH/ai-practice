@@ -1,0 +1,1709 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>交互演示 · 释文 DocRelease</title>
+<meta name="description" content="独立交互演示：切换发布场景、查看输入的代码变更、运行文档生成流水线，并预览与导出自动产出的功能点清单、产品文档与溯源文件。" />
+<style>
+/* ============================================================
+   释文 DocRelease · 交互演示控制台
+   单文件、无外部依赖
+   ============================================================ */
+:root{
+  --bg:#eef1f8;
+  --panel:#ffffff;
+  --panel-2:#fbfcfe;
+  --ink:#0f172a;
+  --ink-2:#334155;
+  --ink-3:#64748b;
+  --ink-4:#94a3b8;
+  --line:#e3e8ef;
+  --line-2:#eef2f7;
+  --brand:#2f5bff;
+  --brand-2:#1e3fd8;
+  --brand-soft:#eef2ff;
+  --brand-line:#dde4ff;
+  --green:#12996b;
+  --green-soft:#eafaf3;
+  --amber:#d97706;
+  --amber-soft:#fff7e8;
+  --rose:#e0555f;
+  --rose-soft:#fef2f3;
+  --violet:#6d4aff;
+  --violet-soft:#f2eeff;
+  --teal:#0ea5a0;
+  --teal-soft:#e8f8f7;
+  --slate-soft:#f1f5f9;
+  --term-bg:#0d1424;
+  --term-ink:#c9d5e8;
+  --term-dim:#7c8aa6;
+  --radius:14px;
+  --radius-sm:9px;
+  --shadow-s:0 1px 2px rgba(15,23,42,.04), 0 1px 3px rgba(15,23,42,.06);
+  --shadow-m:0 4px 12px rgba(15,23,42,.05), 0 14px 34px rgba(15,23,42,.07);
+  --font:"PingFang SC","Microsoft YaHei","Hiragino Sans GB","Source Han Sans SC",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"SFMono-Regular",Menlo,Consolas,"Liberation Mono","Courier New",monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:var(--font);background:var(--bg);color:var(--ink);
+  line-height:1.7;-webkit-font-smoothing:antialiased;overflow-x:hidden;
+  background-image:radial-gradient(circle at 12% -8%,#e2e9ff 0,transparent 46%),radial-gradient(circle at 92% 4%,#e8f7f4 0,transparent 40%);
+  background-repeat:no-repeat;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:0;background:none;color:inherit}
+code,pre,kbd{font-family:var(--mono)}
+::selection{background:var(--brand-soft);color:var(--brand-2)}
+
+/* ---------- 顶栏 ---------- */
+.topbar{
+  position:sticky;top:0;z-index:40;
+  background:rgba(255,255,255,.86);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line);
+}
+.topbar-in{width:min(1560px,calc(100% - 40px));margin:0 auto;height:58px;display:flex;align-items:center;gap:14px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-.015em;font-size:15.5px;white-space:nowrap}
+.brand .mk{
+  width:26px;height:26px;border-radius:7px;flex:0 0 auto;
+  background:linear-gradient(140deg,var(--brand),var(--violet));
+  display:grid;place-items:center;box-shadow:0 3px 9px rgba(47,91,255,.32);
+}
+.brand .mk svg{width:14px;height:14px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.brand small{font-weight:500;color:var(--ink-4);font-size:12px;letter-spacing:.02em}
+.top-tag{
+  font-size:11.5px;font-weight:650;color:var(--brand-2);background:var(--brand-soft);
+  border:1px solid var(--brand-line);border-radius:999px;padding:2px 9px;
+}
+.top-sp{flex:1}
+.top-link{
+  font-size:13px;font-weight:600;color:var(--ink-2);display:flex;align-items:center;gap:6px;
+  padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:#fff;transition:.18s;
+}
+.top-link:hover{border-color:var(--brand-line);color:var(--brand-2);background:var(--brand-soft)}
+.top-link svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* ---------- 控制条 ---------- */
+.console{width:min(1560px,calc(100% - 40px));margin:0 auto;padding:18px 0 40px}
+.controls{
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:11px 14px;box-shadow:var(--shadow-s);margin-bottom:14px;
+}
+.ctl-lab{font-size:11.5px;font-weight:700;color:var(--ink-4);letter-spacing:.08em;text-transform:uppercase;margin-right:2px}
+.seg{display:inline-flex;background:var(--slate-soft);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
+.seg button{
+  font-size:12.5px;font-weight:600;color:var(--ink-2);padding:5px 12px;border-radius:7px;
+  transition:.16s;white-space:nowrap;
+}
+.seg button:hover{color:var(--ink)}
+.seg button[aria-pressed="true"]{background:#fff;color:var(--brand-2);box-shadow:var(--shadow-s)}
+.seg button .v{font-family:var(--mono);font-size:11px;color:var(--ink-4);margin-left:5px}
+.seg button[aria-pressed="true"] .v{color:var(--brand)}
+.ctl-div{width:1px;height:22px;background:var(--line);margin:0 2px}
+.sw{
+  display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--ink-2);
+  cursor:pointer;user-select:none;padding:5px 4px;
+}
+.sw input{display:none}
+.sw .track{width:34px;height:19px;border-radius:999px;background:#d7dee9;position:relative;transition:.2s;flex:0 0 auto}
+.sw .track::after{
+  content:"";position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.25);transition:.2s;
+}
+.sw input:checked + .track{background:var(--brand)}
+.sw input:checked + .track::after{transform:translateX(15px)}
+.ctl-sp{flex:1;min-width:8px}
+.btn-run{
+  display:inline-flex;align-items:center;gap:8px;
+  background:var(--brand);color:#fff;font-size:13.5px;font-weight:650;
+  padding:9px 20px;border-radius:999px;box-shadow:0 4px 14px rgba(47,91,255,.28);transition:.18s;
+}
+.btn-run:hover{background:var(--brand-2);transform:translateY(-1px)}
+.btn-run:disabled{opacity:.62;cursor:not-allowed;transform:none}
+.btn-run svg{width:13px;height:13px;fill:currentColor}
+.btn-run.is-run svg{fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round}
+.btn-ghost{
+  font-size:12.5px;font-weight:600;color:var(--ink-3);padding:8px 14px;border-radius:999px;
+  border:1px solid var(--line);background:#fff;transition:.18s;
+}
+.btn-ghost:hover{color:var(--brand-2);border-color:var(--brand-line);background:var(--brand-soft)}
+.hidden{display:none !important}
+
+/* ---------- 三栏工作区 ---------- */
+.workspace{
+  display:grid;grid-template-columns:305px minmax(0,1fr) minmax(0,1.12fr);
+  gap:14px;align-items:stretch;
+}
+.panel{
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow-s);display:flex;flex-direction:column;overflow:hidden;
+  min-height:606px;max-height:calc(100vh - 176px);
+}
+.panel-hd{
+  display:flex;align-items:center;gap:9px;padding:11px 14px;border-bottom:1px solid var(--line);
+  background:var(--panel-2);flex:0 0 auto;
+}
+.panel-hd .no{
+  width:19px;height:19px;border-radius:6px;background:var(--brand-soft);color:var(--brand-2);
+  display:grid;place-items:center;font-size:11px;font-weight:800;font-family:var(--mono);flex:0 0 auto;
+}
+.panel-hd h2{font-size:13.5px;font-weight:700;letter-spacing:-.01em;flex:1;white-space:nowrap}
+.panel-hd .meta{font-size:11px;font-family:var(--mono);color:var(--ink-4);white-space:nowrap}
+.panel-bd{flex:1;overflow:auto;scrollbar-width:thin}
+.panel-bd::-webkit-scrollbar{width:9px;height:9px}
+.panel-bd::-webkit-scrollbar-thumb{background:#d6dde8;border-radius:9px;border:2px solid #fff}
+.panel-bd::-webkit-scrollbar-thumb:hover{background:#c2cbd9}
+
+/* ---------- 左：代码 diff ---------- */
+.repo-head{padding:12px 14px;border-bottom:1px solid var(--line-2);background:#fff}
+.repo-row{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-3);margin-bottom:3px}
+.repo-row:last-child{margin-bottom:0}
+.repo-row .k{color:var(--ink-4);min-width:56px;flex:0 0 auto;font-size:11.5px}
+.repo-row .v{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);word-break:break-all}
+.branch{color:var(--brand-2);font-weight:600}
+.brk{font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:5px;background:var(--rose-soft);color:#b23a44;font-family:var(--mono)}
+
+.file{border-bottom:1px solid var(--line-2);transition:.22s}
+.file-hd{
+  display:flex;align-items:center;gap:7px;padding:8px 14px;background:#fff;
+  font-size:11.5px;font-family:var(--mono);color:var(--ink-2);position:relative;
+}
+.file-hd .st{font-weight:800;flex:0 0 auto;width:9px;text-align:center}
+.file-hd .st.a{color:var(--green)}
+.file-hd .st.m{color:var(--amber)}
+.file-hd .st.d{color:var(--rose)}
+.file-hd .fn{flex:1;word-break:break-all}
+.file-hd .scan{
+  width:13px;height:13px;flex:0 0 auto;opacity:0;transition:.2s;
+  color:var(--green);
+}
+.file.scanned .scan{opacity:1}
+.file.scanned .file-hd{background:var(--green-soft)}
+.file.cursor .file-hd{background:var(--brand-soft)}
+.file.cursor .file-hd::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:2.5px;background:var(--brand);
+}
+.dl{padding:7px 0 9px;background:var(--panel-2);overflow-x:auto}
+.dl .ln{
+  display:flex;gap:8px;padding:0 14px;font-family:var(--mono);font-size:11.2px;line-height:1.75;
+  white-space:pre;color:var(--ink-2);
+}
+.dl .ln .g{width:8px;flex:0 0 auto;text-align:center;user-select:none}
+.dl .ln.add{background:rgba(18,153,107,.075);color:#0b6b4c}
+.dl .ln.add .g{color:var(--green)}
+.dl .ln.del{background:rgba(224,85,95,.07);color:#a83a43}
+.dl .ln.del .g{color:var(--rose)}
+.dl .ln.ctx{color:var(--ink-4)}
+.dl .ln.ctx .g{color:var(--line)}
+.code-note{
+  padding:11px 14px;font-size:11.5px;color:var(--ink-3);background:var(--slate-soft);
+  border-top:1px solid var(--line-2);line-height:1.65;
+}
+.code-note b{color:var(--ink-2)}
+
+/* ---------- 中：流水线 ---------- */
+.pipe-head{
+  display:flex;align-items:center;gap:8px;padding:9px 14px;background:#fff;border-bottom:1px solid var(--line-2);
+}
+.live{
+  display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:650;
+  color:var(--ink-3);background:var(--slate-soft);border:1px solid var(--line);
+  border-radius:999px;padding:3px 10px;font-family:var(--mono);
+}
+.live i{width:6px;height:6px;border-radius:50%;background:var(--ink-4);flex:0 0 auto}
+.live.on{color:var(--brand-2);background:var(--brand-soft);border-color:var(--brand-line)}
+.live.on i{background:var(--brand);animation:pulse 1s infinite}
+.live.ok{color:#0b7a56;background:var(--green-soft);border-color:#c3edda}
+.live.ok i{background:var(--green)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+.pipe-bar{height:2px;background:var(--line-2);overflow:hidden}
+.pipe-bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--brand),var(--violet));transition:width .4s ease}
+
+.steps{padding:8px;display:flex;flex-direction:column;gap:4px;flex:0 0 auto}
+.step{
+  display:flex;align-items:flex-start;gap:10px;padding:9px 10px;border-radius:var(--radius-sm);
+  border:1px solid transparent;transition:.2s;position:relative;
+}
+.step:hover{background:var(--panel-2)}
+.step .sk{
+  width:20px;height:20px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;
+  background:#f1f4f9;color:var(--ink-4);font-size:11px;font-weight:800;font-family:var(--mono);
+  transition:.2s;margin-top:1px;
+}
+.step .sk svg{width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.step .st{font-size:13px;font-weight:650;color:var(--ink-3);transition:.2s;line-height:1.5}
+.step .sd{font-size:11px;font-family:var(--mono);color:var(--ink-4);transition:.2s;word-break:break-all}
+.step .exp{
+  max-height:0;overflow:hidden;transition:max-height .3s ease;
+  font-size:11.5px;color:var(--ink-3);line-height:1.66;
+}
+.step.open .exp{max-height:260px;margin-top:8px}
+.step .exp .row{display:flex;gap:6px;margin-bottom:4px}
+.step .exp .row:last-child{margin-bottom:0}
+.step .exp .lb{
+  flex:0 0 auto;font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;height:17px;line-height:15px;
+  background:var(--slate-soft);color:var(--ink-3);font-family:var(--mono);
+}
+.step .exp .lb.r{background:var(--green-soft);color:#0b7a56}
+.step .exp .lb.w{background:var(--amber-soft);color:#a2620a}
+.step .exp .lb.f{background:var(--rose-soft);color:#b23a44}
+.step .chev{
+  flex:0 0 auto;width:14px;height:14px;margin-top:4px;color:var(--ink-4);transition:.25s;
+  opacity:.55;
+}
+.step:hover .chev{opacity:1}
+.step.open .chev{transform:rotate(180deg)}
+.step.active{background:var(--brand-soft);border-color:var(--brand-line)}
+.step.active .sk{background:var(--brand);color:#fff}
+.step.active .st{color:var(--brand-2)}
+.step.active .sd{color:var(--brand)}
+.step.done .sk{background:var(--green);color:#fff}
+.step.done .st{color:var(--ink)}
+.step.done .sd{color:var(--ink-4)}
+
+.term{
+  margin:8px;border-radius:var(--radius-sm);background:var(--term-bg);overflow:hidden;
+  display:flex;flex-direction:column;flex:1;min-height:170px;
+}
+.term-hd{
+  display:flex;align-items:center;gap:6px;padding:7px 11px;border-bottom:1px solid rgba(255,255,255,.08);
+  font-size:11px;font-family:var(--mono);color:var(--term-dim);flex:0 0 auto;
+}
+.term-hd .dots{display:flex;gap:4px}
+.term-hd .dots i{width:8px;height:8px;border-radius:50%;background:#31405c}
+.term-hd .dots i:nth-child(1){background:#e0555f}
+.term-hd .dots i:nth-child(2){background:#d9a341}
+.term-hd .dots i:nth-child(3){background:#3ea87a}
+.term-bd{
+  padding:9px 11px;overflow:auto;font-family:var(--mono);font-size:11.2px;line-height:1.72;
+  flex:1;scrollbar-width:thin;
+}
+.term-bd::-webkit-scrollbar{width:8px}
+.term-bd::-webkit-scrollbar-thumb{background:#2b3a55;border-radius:8px}
+.term-bd .lg{display:flex;gap:7px;animation:fadeUp .22s ease both;color:var(--term-ink)}
+.term-bd .lg .tg{
+  flex:0 0 auto;font-size:10px;font-weight:700;min-width:44px;letter-spacing:.02em;
+}
+.term-bd .lg .ms{word-break:break-word;white-space:pre-wrap}
+.term-bd .lg.g .tg{color:#7dd3a8}
+.term-bd .lg.b .tg{color:#8fb0ff}
+.term-bd .lg.v .tg{color:#b9a3ff}
+.term-bd .lg.t .tg{color:#77d6d2}
+.term-bd .lg.a .tg{color:#e8bb6a}
+.term-bd .lg.r .tg{color:#f08a92}
+.term-bd .lg.s .tg{color:var(--term-dim)}
+.term-bd .lg .ms em{color:#e8bb6a;font-style:normal}
+.term-bd .lg .ms s{color:#f08a92;text-decoration:none}
+.term-bd .lg .ms b{color:#fff;font-weight:600}
+.term-empty{color:var(--term-dim);font-size:11.5px;font-family:var(--mono);line-height:1.85}
+.term-empty .p{color:#7dd3a8}
+@keyframes fadeUp{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+
+/* ---------- 右：产物 ---------- */
+.tabs{display:flex;gap:2px;padding:7px 10px;background:#fff;border-bottom:1px solid var(--line-2);flex:0 0 auto}
+.tabs button{
+  font-size:12.5px;font-weight:600;color:var(--ink-3);padding:6px 11px;border-radius:8px;transition:.16s;
+  display:flex;align-items:center;gap:6px;white-space:nowrap;
+}
+.tabs button:hover{color:var(--ink);background:var(--slate-soft)}
+.tabs button[aria-pressed="true"]{background:var(--brand-soft);color:var(--brand-2)}
+.tabs button .f{font-family:var(--mono);font-size:10.5px;color:var(--ink-4)}
+.tabs button[aria-pressed="true"] .f{color:var(--brand)}
+.tabs .sp{flex:1}
+.tabs .btn-ghost{padding:5px 11px;font-size:12px}
+
+.out-body{padding:16px;background:#fff}
+.out-empty{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+  min-height:430px;color:var(--ink-4);gap:12px;padding:30px 24px;
+}
+.out-empty svg{width:52px;height:52px;stroke:currentColor;fill:none;stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round;opacity:.5}
+.out-empty p{font-size:13.5px;max-width:300px;line-height:1.75}
+.out-empty .path{font-family:var(--mono);font-size:11.5px;color:var(--ink-4);background:var(--slate-soft);padding:4px 10px;border-radius:7px}
+
+.doc-hd{
+  display:flex;align-items:flex-start;gap:12px;padding-bottom:14px;border-bottom:1px solid var(--line);
+  margin-bottom:16px;flex-wrap:wrap;
+}
+.doc-hd .vt{font-size:19px;font-weight:800;letter-spacing:-.02em;font-family:var(--mono)}
+.doc-hd .sub{font-size:12px;color:var(--ink-4);font-family:var(--mono);margin-top:2px}
+.doc-hd .rt{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chip{
+  font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--slate-soft);
+  color:var(--ink-3);border:1px solid var(--line);white-space:nowrap;
+}
+.chip.auto{background:var(--brand-soft);color:var(--brand-2);border-color:var(--brand-line)}
+.chip.mask{background:var(--amber-soft);color:#a2620a;border-color:#f2dcb4}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:9px;margin-bottom:16px}
+.stat{background:var(--panel-2);border:1px solid var(--line-2);border-radius:var(--radius-sm);padding:10px 12px}
+.stat .n{font-size:19px;font-weight:800;letter-spacing:-.02em;font-family:var(--mono);line-height:1.3}
+.stat .n.g{color:var(--green)}.stat .n.a{color:var(--amber)}.stat .n.r{color:var(--rose)}
+.stat .n.v{color:var(--violet)}.stat .n.b{color:var(--brand)}
+.stat .l{font-size:11.5px;color:var(--ink-4);margin-top:1px}
+
+.sec-t{
+  font-size:14px;font-weight:750;letter-spacing:-.01em;margin:20px 0 10px;display:flex;align-items:center;gap:8px;
+  scroll-margin-top:80px;
+}
+.sec-t:first-child{margin-top:0}
+.sec-t .idx{
+  font-family:var(--mono);font-size:11px;font-weight:800;color:var(--brand-2);
+  background:var(--brand-soft);border-radius:5px;padding:1px 6px;
+}
+.sec-t .cn{font-size:11.5px;font-weight:600;color:var(--ink-4);font-family:var(--mono)}
+.tbl-wrap{border:1px solid var(--line);border-radius:var(--radius-sm);overflow:hidden;overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{
+  background:var(--panel-2);text-align:left;font-weight:700;color:var(--ink-2);font-size:11.5px;
+  padding:8px 11px;border-bottom:1px solid var(--line);white-space:nowrap;
+}
+td{padding:9px 11px;border-bottom:1px solid var(--line-2);color:var(--ink-2);vertical-align:top;line-height:1.65}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:var(--panel-2)}
+td .mono{font-family:var(--mono);font-size:11px;color:var(--ink-3);word-break:break-all}
+td .ttl{font-weight:650;color:var(--ink)}
+.tag{
+  display:inline-block;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:5px;white-space:nowrap;
+}
+.tag.t-new{background:var(--green-soft);color:#0b7a56}
+.tag.t-chg{background:var(--amber-soft);color:#a2620a}
+.tag.t-imp{background:var(--violet-soft);color:#5533d6}
+.tag.t-fix{background:var(--rose-soft);color:#b23a44}
+.tag.t-rem{background:var(--slate-soft);color:var(--ink-3)}
+.risk{font-size:11px;font-weight:700;font-family:var(--mono)}
+.risk.high{color:#b23a44}.risk.mid{color:#a2620a}.risk.low{color:#0b7a56}
+
+.frow{border:1px solid var(--line);border-radius:var(--radius-sm);padding:13px 14px;margin-bottom:10px;background:#fff}
+.frow .fh{display:flex;align-items:flex-start;gap:9px;margin-bottom:8px;flex-wrap:wrap}
+.frow .fh .ttl{font-size:14px;font-weight:700;letter-spacing:-.01em;flex:1;min-width:180px}
+.frow p{font-size:13px;color:var(--ink-2);line-height:1.78;margin-bottom:8px}
+.frow .kv{display:grid;grid-template-columns:74px 1fr;gap:5px 10px;font-size:12.5px;margin-top:9px}
+.frow .kv .k{color:var(--ink-4);font-size:12px}
+.frow .kv .v{color:var(--ink-2)}
+.frow .pl{
+  font-family:var(--mono);font-size:11px;color:var(--brand-2);background:var(--brand-soft);
+  border:1px solid var(--brand-line);border-radius:5px;padding:1px 6px;display:inline-block;margin:2px 4px 2px 0;
+}
+.frow .acc{
+  margin-top:10px;padding:9px 11px;background:var(--green-soft);border-radius:var(--radius-sm);
+  font-size:12.5px;color:#0b6b4c;line-height:1.72;
+}
+.frow .acc b{color:#0b7a56}
+
+.tl{border-left:2px solid var(--line);padding-left:18px;margin-left:6px}
+.tl .it{position:relative;padding-bottom:16px}
+.tl .it:last-child{padding-bottom:0}
+.tl .it::before{
+  content:"";position:absolute;left:-25px;top:5px;width:12px;height:12px;border-radius:50%;
+  background:#fff;border:2.5px solid var(--line);
+}
+.tl .it.now::before{border-color:var(--brand);background:var(--brand);box-shadow:0 0 0 4px var(--brand-soft)}
+.tl .it.warn::before{border-color:var(--amber);background:var(--amber)}
+.tl .d{font-size:11px;font-family:var(--mono);color:var(--ink-4);display:flex;gap:8px;align-items:center;margin-bottom:2px}
+.tl .d .who{font-family:var(--font);font-weight:650;color:var(--ink-3);font-size:11.5px}
+.tl .x{font-size:12.5px;color:var(--ink-2);line-height:1.72}
+.tl .it.now .x{color:var(--ink);font-weight:600}
+.tl .dv{
+  display:inline-block;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:4px;
+  background:var(--rose-soft);color:#b23a44;margin-left:6px;
+}
+
+/* JSON */
+.json{
+  background:var(--term-bg);border-radius:var(--radius-sm);padding:15px 16px;overflow-x:auto;
+  font-family:var(--mono);font-size:11.8px;line-height:1.78;color:var(--term-ink);white-space:pre;
+}
+.json .jk{color:#8fb0ff}
+.json .js{color:#7dd3a8}
+.json .jn{color:#e8bb6a}
+.json .jb{color:#b9a3ff}
+
+.note-box{
+  margin-top:14px;padding:12px 14px;border-radius:var(--radius-sm);
+  background:var(--amber-soft);border:1px solid #f2dcb4;font-size:12.5px;color:#8a5410;line-height:1.75;
+}
+.note-box b{color:#a2620a}
+.note-box.blue{background:var(--brand-soft);border-color:var(--brand-line);color:var(--ink-2)}
+.note-box.blue b{color:var(--brand-2)}
+
+/* ---------- 页脚 ---------- */
+.foot{
+  width:min(1560px,calc(100% - 40px));margin:0 auto;padding:22px 0 40px;
+  font-size:12px;color:var(--ink-4);line-height:1.8;
+  display:flex;gap:14px;flex-wrap:wrap;align-items:center;
+}
+.foot .sp{flex:1}
+.foot b{color:var(--ink-3);font-weight:650}
+
+/* ---------- 响应式 ---------- */
+@media (max-width:1180px){
+  .workspace{grid-template-columns:1fr 1fr}
+  .panel{max-height:none;min-height:auto}
+  .panel-out{grid-column:1 / -1}
+  .out-empty{min-height:230px}
+}
+@media (max-width:820px){
+  .topbar-in,.console,.foot{width:min(1560px,calc(100% - 26px))}
+  .workspace{grid-template-columns:1fr}
+  .panel-out{grid-column:auto}
+  .controls{gap:10px;padding:10px 12px}
+  .controls .ctl-lab,.controls .ctl-div{display:none}
+  .seg{width:100%}
+  .seg button{flex:1;text-align:center;padding:6px 6px}
+  .sw{margin-left:0}
+  .ctl-sp{display:none}
+  .btn-run{width:100%;justify-content:center}
+  .tabs{overflow-x:auto}
+  .brand small,.top-tag{display:none}
+  .term{min-height:150px}
+  .doc-hd .rt{margin-left:0;width:100%}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-in">
+    <div class="brand">
+      <span class="mk"><svg viewBox="0 0 24 24"><path d="M4 19V5a2 2 0 0 1 2-2h8l6 6v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 3v6h6"/></svg></span>
+      释文 DocRelease
+      <small>发布文档自动生成</small>
+    </div>
+    <span class="top-tag">交互演示</span>
+    <span class="top-sp"></span>
+    <a class="top-link" href="index.html">
+      返回主站
+      <svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
+    </a>
+  </div>
+</header>
+
+<main class="console">
+
+  <!-- 控制条 -->
+  <div class="controls">
+    <span class="ctl-lab">发布场景</span>
+    <div class="seg" id="sceneSeg" role="group" aria-label="选择发布场景"></div>
+    <div class="ctl-div"></div>
+    <span class="ctl-lab">术语风格</span>
+    <div class="seg" id="toneSeg" role="group" aria-label="选择术语风格">
+      <button data-tone="business" aria-pressed="true">偏业务</button>
+      <button data-tone="tech" aria-pressed="false">偏技术</button>
+    </div>
+    <div class="ctl-div"></div>
+    <label class="sw" for="maskSw">
+      <input type="checkbox" id="maskSw" />
+      <span class="track"></span>
+      脱敏输出
+    </label>
+    <span class="ctl-sp"></span>
+    <button class="btn-ghost hidden" id="skipBtn">跳过动画</button>
+    <button class="btn-run" id="runBtn">
+      <svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5-11-6.5z"/></svg>
+      <span id="runLabel">运行发布</span>
+    </button>
+  </div>
+
+  <!-- 三栏 -->
+  <div class="workspace">
+
+    <!-- ① 输入 -->
+    <section class="panel panel-in">
+      <div class="panel-hd">
+        <span class="no">1</span>
+        <h2>输入 · 变更代码</h2>
+        <span class="meta" id="inMeta">—</span>
+      </div>
+      <div class="panel-bd" id="inBody"></div>
+    </section>
+
+    <!-- ② 处理 -->
+    <section class="panel panel-pipe">
+      <div class="panel-hd">
+        <span class="no">2</span>
+        <h2>处理 · 生成流水线</h2>
+        <span class="meta" id="pipeMeta">5 steps</span>
+      </div>
+      <div class="pipe-bar"><i id="pipeBar"></i></div>
+      <div class="pipe-head">
+        <span class="live" id="live"><i></i><span id="liveTxt">待触发 · —</span></span>
+      </div>
+      <div class="panel-bd" style="display:flex;flex-direction:column">
+        <div class="steps" id="steps"></div>
+        <div class="term">
+          <div class="term-hd">
+            <span class="dots"><i></i><i></i><i></i></span>
+            docrelease — /workspace/pipeline
+          </div>
+          <div class="term-bd" id="term"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ③ 输出 -->
+    <section class="panel panel-out">
+      <div class="panel-hd">
+        <span class="no">3</span>
+        <h2>输出 · 交付产物</h2>
+        <span class="meta" id="outMeta">等待生成</span>
+      </div>
+      <div class="tabs" id="tabs">
+        <button data-tab="checklist" aria-pressed="true">功能点清单 <span class="f">.csv</span></button>
+        <button data-tab="doc" aria-pressed="false">产品文档 <span class="f">.md</span></button>
+        <button data-tab="trace" aria-pressed="false">溯源文件 <span class="f">.json</span></button>
+        <span class="sp"></span>
+        <button class="btn-ghost hidden" id="expBtn">导出当前</button>
+      </div>
+      <div class="panel-bd">
+        <div class="out-body" id="outBody"></div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<footer class="foot">
+  <div><b>本页为独立交互演示</b>，场景、代码与产物均为模拟数据，用于说明机制而非真实系统输出。</div>
+  <span class="sp"></span>
+  <div>生产环境中全链路由 CI 构建成功后自动触发，无人工介入。</div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ============================================================
+     1. 数据模型
+     ============================================================ */
+
+  var F = function (o) { return o; };
+
+  var SCENARIOS = [
+    /* ---------------- 补丁修复 ---------------- */
+    {
+      id: "patch",
+      name: "补丁修复",
+      short: "hotfix",
+      version: "v2.13.4",
+      branch: "hotfix/export-truncate",
+      range: "v2.13.3..e91b7a2",
+      tip: "e91b7a2",
+      trigger: "hotfix 分支合并后 CI 构建成功",
+      ciRun: "#2890",
+      stats: { commits: 3, files: 9, modules: 2, added: 118, removed: 46 },
+      days: "约 1 天",
+      diffs: [
+        { st: "m", file: "src/report/export/stream.ts", lines: [
+          { t: "add", s: "const CHUNK_SIZE = 5000;" },
+          { t: "add", s: "for await (const chunk of cursor) {" },
+          { t: "add", s: "  await writer.flush(chunk);   // 分片写出，避免内存截断" },
+          { t: "add", s: "}" },
+          { t: "del", s: "const all = await loadAllOrders();   // 一次性载入，超 1 万条被截断" },
+          { t: "del", s: "await writer.write(all.join('\\n'));" }
+        ]},
+        { st: "a", file: "src/report/export/retry.ts", lines: [
+          { t: "add", s: "export async function withRetry<T>(fn: () => Promise<T>, times = 3): Promise<T> {" },
+          { t: "add", s: "  for (let i = 0; i < times; i++) {" },
+          { t: "add", s: "    try { return await fn(); }" },
+          { t: "add", s: "    catch (e) { if (i === times - 1) throw e; await sleep(2 ** i * 500); }" },
+          { t: "add", s: "  }" },
+          { t: "add", s: "  throw new Error('unreachable');" },
+          { t: "add", s: "}" }
+        ]},
+        { st: "m", file: "api/report/export.go", lines: [
+          { t: "add", s: "Cursor *string `json:\"cursor,omitempty\"`  // 新增分片游标参数" },
+          { t: "ctx", s: "// 响应体新增 nextCursor 字段，客户端按需续取" }
+        ]},
+        { st: "m", file: "src/report/export/index.ts", lines: [
+          { t: "add", s: "if (rows > CHUNK_LIMIT) return streamExport(query, Cursor.parse(req));" },
+          { t: "ctx", s: "// 小数据量仍走原同步路径，行为不变" }
+        ]}
+      ],
+      features: [
+        F({
+          tag: "修复", risk: "中", breaking: false,
+          title: "批量导出超过 1 万条时被截断",
+          biz: "订单批量导出原先一次性将全部记录载入内存，超过约 1 万条后尾部数据被丢弃。本次改为分片流式写出，运营可完整导出全量订单。",
+          tech: "export/index.ts 中 rows > CHUNK_LIMIT 时改走 streamExport()，按 CHUNK_SIZE=5000 分片 flush；原 loadAllOrders() 全量载入逻辑已删除。",
+          visible: "运营在订单导出页导出全量数据时，文件条数与筛选结果一致",
+          scope: "订单导出、财务对账导出、下游 BI 取数",
+          paths: ["src/report/export/stream.ts", "src/report/export/index.ts"],
+          acceptance: "① 筛选 3 万条订单导出，文件行数为 3 万；② 导出过程中查看内存占用保持平稳；③ 1 万条以下导出行为与上一版本一致。",
+          action: "重跑上月对账导出，核对与财务系统总额是否一致",
+          role: "财务 / 运营"
+        }),
+        F({
+          tag: "修复", risk: "低", breaking: false,
+          title: "导出任务失败后无重试，需人工重新触发",
+          biz: "导出过程中若对象存储出现瞬时抖动，任务会直接失败。本次加入最多 3 次指数退避重试，绝大多数瞬时故障可自愈，运营无需手动重跑。",
+          tech: "新增 retry.ts::withRetry()，退避间隔 2^i * 500ms，最多 3 次；export/index.ts 调用处已包裹。",
+          visible: "导出失败提示明显减少，失败时错误信息更具体",
+          scope: "全部导出类任务（订单、对账、报表）",
+          paths: ["src/report/export/retry.ts", "src/report/export/index.ts"],
+          acceptance: "① 人为中断存储连接，任务在 3 次内自动恢复；② 连续失败 3 次后仍失败，且错误信息包含原始异常。",
+          action: "无需动作，仅知晓失败告警量会下降",
+          role: "运营"
+        }),
+        F({
+          tag: "影响面", risk: "中", breaking: false,
+          title: "导出接口新增分片游标参数 cursor",
+          biz: "为支持分片导出，导出接口新增了游标参数与续取字段。使用该接口的取数脚本如果严格校验响应字段，需要同步适配。",
+          tech: "api/report/export.go 请求体新增 Cursor *string，响应体新增 nextCursor；未传 cursor 时按首片返回，向后兼容。",
+          visible: "无用户可见变化",
+          scope: "调用导出接口的第三方取数脚本、BI 定时任务",
+          paths: ["api/report/export.go"],
+          acceptance: "① 不传 cursor 调用返回首片且含 nextCursor；② 传 cursor 能取到后续分片；③ 老版本客户端调用不报错。",
+          action: "通知使用导出接口的取数同学确认脚本兼容",
+          role: "数据 / 研发"
+        })
+      ],
+      history: [
+        { d: "10-11", who: "客服", text: "反馈运营导出 3 万条订单，文件只有 1 万条", cls: "warn" },
+        { d: "10-12", who: "研发", text: "定位为一次性全量载入导致截断，改为分片流式写出" },
+        { d: "10-12", who: "研发", text: "追加失败重试，顺带修复导出任务不重试的历史欠账" },
+        { d: "10-14", who: "本产物", text: "以代码实际行为收口：分片 + 重试 + 接口游标参数", cls: "now" }
+      ],
+      highlights: ["REFUND_WINDOW_DAYS 类常量未变更，无外部契约影响", "1 处接口新增可选参数，向后兼容"]
+    },
+
+    /* ---------------- 功能版本 ---------------- */
+    {
+      id: "feature",
+      name: "功能版本",
+      short: "release",
+      version: "v2.14.0",
+      branch: "release/v2.14.0",
+      range: "v2.13.3..7f3c1a",
+      tip: "7f3c1a",
+      trigger: "release 分支合并后 CI 构建成功",
+      ciRun: "#2941",
+      stats: { commits: 47, files: 42, modules: 6, added: 1402, removed: 462 },
+      days: "约 3 周",
+      diffs: [
+        { st: "m", file: "src/order/coupon/stack.ts", lines: [
+          { t: "add", s: "export function resolveBestCombination(coupons: Coupon[], amount: number): CouponPlan {" },
+          { t: "add", s: "  return searchMaxSubset(coupons, amount);   // 最优组合搜索" },
+          { t: "add", s: "}" },
+          { t: "del", s: "export function pickBestCoupon(coupon: Coupon, amount: number): Coupon {" },
+          { t: "ctx", s: "// 单券选择逻辑已被组合搜索替代" }
+        ]},
+        { st: "m", file: "src/checkout/summary.tsx", lines: [
+          { t: "add", s: "<CouponStackDetail plan={plan} />" },
+          { t: "ctx", s: "// 抵扣明细行由「单券一行」改为「逐券展开」" }
+        ]},
+        { st: "m", file: "src/aftersale/policy.ts", lines: [
+          { t: "del", s: "export const REFUND_WINDOW_DAYS = 7;" },
+          { t: "add", s: "export const REFUND_WINDOW_DAYS = 15;   // 需同步协议与客服 SOP" }
+        ]},
+        { st: "m", file: "api/order/list.go", lines: [
+          { t: "add", s: "CouponStackable bool `json:\"couponStackable\"`  // 历史数据默认 false" }
+        ]},
+        { st: "m", file: "src/member/benefit/verify.ts", lines: [
+          { t: "add", s: "export function verifyRealtime(uid: string, order: Order): BenefitCheck {" },
+          { t: "add", s: "  return checkLevel(uid, order.totalAmount, order.items);" },
+          { t: "add", s: "}" }
+        ]},
+        { st: "m", file: "src/goods/detail/price.tsx", lines: [
+          { t: "add", s: "const finalPrice = calcAfterPromotion(price, activePromos);" },
+          { t: "add", s: "<PriceTag value={finalPrice} label=\"预计到手价\" />" }
+        ]}
+      ],
+      features: [
+        F({
+          tag: "新增", risk: "中", breaking: false,
+          title: "订单可用多张优惠券叠加",
+          biz: "下单页支持同时勾选多张优惠券，系统自动按最优组合抵扣，收银台逐张展示抵扣明细。用户在结算时即可看到组合后的实付金额，无需手动试算。",
+          tech: "新增 resolveBestCombination() 替换原 pickBestCoupon()，入参由单券改为券数组，返回 CouponPlan；checkout/summary.tsx 消费 plan 渲染明细分行。",
+          visible: "下单页可勾选多张券，收银台显示每张券的抵扣金额与合计",
+          scope: "下单页、收银台、订单详情、售后（退款需按各券分摊）",
+          paths: ["src/order/coupon/stack.ts", "src/checkout/summary.tsx"],
+          acceptance: "① 勾选 2 张券下单，实付金额等于最优组合结果；② 退单时按各券分摊金额分别退回；③ 仅持 1 张券时行为与上一版本完全一致。",
+          action: "更新帮助中心「优惠券使用规则」；客服话术补充组合抵扣说明与分摊退款口径",
+          role: "运营 / 客服"
+        }),
+        F({
+          tag: "变更", risk: "高", breaking: false,
+          title: "退款时效由 7 天调整为 15 天",
+          biz: "用户可发起退款的时间窗口从 7 天延长至 15 天，直接扩大售后受理范围。客服工作量与退款资金占用预期上升，用户协议与帮助中心文案需同步更新。",
+          tech: "aftersale/policy.ts 中 REFUND_WINDOW_DAYS 由 7 改为 15。该常量被售后入口、订单详情倒计时、定时关单任务共同引用。",
+          visible: "订单详情页退款入口的可申请时间延长，超期未申请提示文案同步变化",
+          scope: "售后入口、用户协议条款、客服 SOP、财务退款预算、定时任务关单时点",
+          paths: ["src/aftersale/policy.ts"],
+          acceptance: "① 8 天前的订单仍可发起退款；② 16 天前的订单不可发起并展示新文案；③ 用户协议与帮助中心已同步更新为 15 天。",
+          action: "更新用户协议与帮助中心；评估退款预算影响并告知客服排班",
+          role: "法务 / 运营 / 财务"
+        }),
+        F({
+          tag: "影响面", risk: "中", breaking: false,
+          title: "订单列表接口新增字段 couponStackable",
+          biz: "订单列表接口新增一个标识字段，用于标记该订单是否使用了券叠加。下游报表与 BI 看板如需展示该维度，需同步接入。",
+          tech: "api/order/list.go 响应结构新增 CouponStackable bool，下游报表视图需增加字段映射。",
+          visible: "无用户可见变化",
+          scope: "订单报表、BI 看板、数据仓库同步任务",
+          paths: ["api/order/list.go"],
+          acceptance: "① 新字段在接口响应中返回；② 历史订单该字段为 false 且不报错；③ 下游报表同步任务无字段缺失告警。",
+          action: "报表侧新增「是否券叠加」维度；确认历史数据口径",
+          role: "数据"
+        }),
+        F({
+          tag: "修复", risk: "低", breaking: false,
+          title: "批量导出超过 1 万条时被截断",
+          biz: "订单批量导出改为分片流式写出，超过 1 万条的订单导出不再丢失尾部数据，运营可完整导出全量订单用于对账。",
+          tech: "report/export/stream.ts 新增 CHUNK_SIZE=5000 分片写入，取消全量载入内存的实现。",
+          visible: "导出文件条数与筛选结果一致",
+          scope: "订单导出、财务对账导出",
+          paths: ["src/report/export/stream.ts"],
+          acceptance: "① 筛选 3 万条导出，文件行数为 3 万；② 导出过程中内存占用平稳。",
+          action: "重跑上月对账导出核对总额",
+          role: "财务"
+        }),
+        F({
+          tag: "变更", risk: "低", breaking: false,
+          title: "商品详情页展示「预计到手价」",
+          biz: "商品详情页在活动期间展示计入优惠券后的预计到手价，减少用户下单前的价格疑问，同时降低因价格理解偏差产生的咨询量。",
+          tech: "goods/detail/price.tsx 新增 calcAfterPromotion() 计算，展示组件复用 PriceTag 并以「预计到手价」标注。",
+          visible: "活动商品详情页新增预计到手价展示，并标注为预估值",
+          scope: "商品详情页、活动落地页、搜索引擎收录的价格快照",
+          paths: ["src/goods/detail/price.tsx"],
+          acceptance: "① 活动商品展示预计到手价且与实际下单金额一致；② 非活动商品不展示该价格；③ 文案明确标注为预估值。",
+          action: "确认活动页价格口径；客服补充「预计到手价随券变化」的解释话术",
+          role: "运营 / 客服"
+        }),
+        F({
+          tag: "新增", risk: "中", breaking: false,
+          title: "会员权益在下单时实时校验",
+          biz: "会员等级权益由下单时实时校验，避免历史缓存导致的权益错用。用户在权益过期后立即不再享受对应折扣，权益边界更清晰。",
+          tech: "新增 member/benefit/verify.ts::verifyRealtime()，读取实时等级与订单金额，替代原缓存校验路径。",
+          visible: "会员等级变更或到期后，下单折扣立即生效，无需等待缓存刷新",
+          scope: "下单校验、会员中心、客服权益工单",
+          paths: ["src/member/benefit/verify.ts"],
+          acceptance: "① 权益到期后立即下单不再享受折扣；② 升级会员后立即享受新权益；③ 下单接口耗时无明显上升。",
+          action: "更新会员权益说明话术，强调「实时生效」",
+          role: "运营"
+        })
+      ],
+      history: [
+        { d: "09-24", who: "运营侧", text: "提出「券叠加」需求，口头约定最多 3 张" },
+        { d: "09-27", who: "产品", text: "讨论稿定为「最多 2 张，且不可与品类券共用」", cls: "warn" },
+        { d: "10-08", who: "研发", text: "实现为「不限制张数，按最优组合自动抵扣」", cls: "warn" },
+        { d: "10-14", who: "本产物", text: "以代码实际行为收口：不限制张数 + 最优组合（与讨论稿不一致，已在此留痕）", cls: "now" }
+      ],
+      highlights: ["检测到 1 处常量变更影响外部契约：REFUND_WINDOW_DAYS 7 → 15", "1 处导出接口新增字段，历史数据默认 false"]
+    },
+
+    /* ---------------- 大版本 ---------------- */
+    {
+      id: "major",
+      name: "大版本",
+      short: "major",
+      version: "v3.0.0",
+      branch: "release/3.0.0",
+      range: "v2.14.0..4a9c0fe",
+      tip: "4a9c0fe",
+      trigger: "release 分支合并后 CI 构建成功",
+      ciRun: "#3102",
+      stats: { commits: 168, files: 214, modules: 14, added: 8640, removed: 3210 },
+      days: "约 4 个月",
+      diffs: [
+        { st: "d", file: "api/legacy/order.go", lines: [
+          { t: "del", s: "// POST /v1/order/create" },
+          { t: "del", s: "func CreateOrderV1(w http.ResponseWriter, r *http.Request) {" },
+          { t: "add", s: "// 已下线，返回 410 Gone 并附迁移指引：请改用 POST /v2/orders" }
+        ]},
+        { st: "m", file: "src/order/state/machine.ts", lines: [
+          { t: "del", s: "export function transition(from: Status, action: Action): Status {" },
+          { t: "add", s: "export async function apply(event: OrderEvent): Promise<Snapshot> {" },
+          { t: "add", s: "  return reduce(events, { ...state }, projector);   // 事件驱动状态机" },
+          { t: "ctx", s: "// 状态流转改为事件溯源，历史事件可回放" }
+        ]},
+        { st: "a", file: "src/inventory/multi-warehouse.ts", lines: [
+          { t: "add", s: "export async function allocateAcross(cart: Cart, warehouses: Warehouse[]): Promise<Allocation> {" },
+          { t: "add", s: "  return solvers.greedy(cart, warehouses, { preferNearest: true });" },
+          { t: "add", s: "}" }
+        ]},
+        { st: "m", file: "src/pay/callback/verify.ts", lines: [
+          { t: "del", s: "return md5(payload + secret) === sign;" },
+          { t: "add", s: "return hmacSha256(payload, secret) === sign;   // 签名算法升级" }
+        ]},
+        { st: "m", file: "src/seckill/stock/deduct.ts", lines: [
+          { t: "add", s: "const ok = await redis.eval(LUA_DEDUCT, [key], [qty]);   // 原子扣减" },
+          { t: "del", s: "const left = await redis.get(key); if (left >= qty) { await redis.decrby(key, qty); }" }
+        ]},
+        { st: "a", file: "src/aftersale/partial-refund.ts", lines: [
+          { t: "add", s: "export async function refundPartial(orderId: string, items: RefundItem[]): Promise<RefundResult> {" },
+          { t: "add", s: "  return gateway.refund(settle(orderId, items));   // 按行分摊" },
+          { t: "add", s: "}" }
+        ]},
+        { st: "d", file: "src/auth/sms.ts", lines: [
+          { t: "del", s: "export async function loginBySms(phone: string, code: string) {" },
+          { t: "add", s: "// 短信验证码登录已停用，入口收敛至一键登录与密码登录" }
+        ]}
+      ],
+      features: [
+        F({
+          tag: "移除", risk: "高", breaking: true,
+          title: "旧版下单接口 /v1/order/create 下线",
+          biz: "旧版下单接口正式下线，所有对接方必须改用新版接口。仍在调用旧接口的第三方渠道与老版本 App 将无法下单，需在发版前完成迁移。",
+          tech: "api/legacy/order.go 中 CreateOrderV1 已删除，路由返回 410 Gone 并附带迁移指引 /v2/orders。",
+          visible: "使用旧版本客户端的用户下单时收到「请升级后重试」提示",
+          scope: "全部第三方渠道对接、三个月内未升级的 App 版本、内部风控代下单脚本",
+          paths: ["api/legacy/order.go"],
+          acceptance: "① 旧接口返回 410 且带迁移链接；② 新接口承载全部下单流量；③ 渠道侧迁移完成率 100% 后再发布。",
+          action: "发版前完成渠道迁移确认；客服准备「请升级客户端」的话术",
+          role: "商务 / 客服 / 研发"
+        }),
+        F({
+          tag: "变更", risk: "高", breaking: true,
+          title: "订单状态机重构为事件驱动",
+          biz: "订单状态流转由直接改写状态改为记录事件后重放推导。对外表现是状态更新更快、异常单可回放排查，但订单状态的中间态时序可能有细微变化。",
+          tech: "order/state/machine.ts 中 transition() 替换为 apply(event)，引入事件溯源与 projector，状态由事件流归约得出。",
+          visible: "订单状态刷新更及时；极端情况下状态回退现象减少",
+          scope: "订单全链路、售后、风控、数据仓库的订单状态口径",
+          paths: ["src/order/state/machine.ts"],
+          acceptance: "① 全量回归用例中订单状态流转正确；② 异常单可用事件流回放复现；③ 数据仓库存量订单状态口径与新系统一致。",
+          action: "确认报表口径是否有变化；售后 SOP 中「状态异常」处理步骤更新",
+          role: "数据 / 客服"
+        }),
+        F({
+          tag: "新增", risk: "中", breaking: false,
+          title: "多仓库存实时协同",
+          biz: "支持同一订单跨多个仓库发货，系统按就近原则自动拆单分配库存。用户可下单的商品范围扩大，缺货导致的订单取消明显减少。",
+          tech: "新增 inventory/multi-warehouse.ts::allocateAcross()，采用贪心分配并优先就近仓。",
+          visible: "部分商品从「缺货」变为「可售」；一个订单可能拆成多个包裹",
+          scope: "商品详情页可售判断、购物车、订单拆包、物流轨迹展示",
+          paths: ["src/inventory/multi-warehouse.ts"],
+          acceptance: "① 单仓缺货时可从第二仓分配并成功下单；② 拆包订单的物流轨迹可分别查看；③ 分配结果符合就近优先规则。",
+          action: "更新「一个订单多个包裹」的用户说明；客服话术补充拆单解释",
+          role: "运营 / 客服"
+        }),
+        F({
+          tag: "变更", risk: "高", breaking: true,
+          title: "支付回调签名算法升级为 HMAC-SHA256",
+          biz: "支付回调的签名校验算法由 MD5 升级为 HMAC-SHA256。使用旧算法验签的支付渠道回调将校验失败，需在发版前完成密钥与算法切换。",
+          tech: "pay/callback/verify.ts 中 md5(payload + secret) 替换为 hmacSha256(payload, secret)，密钥来源不变。",
+          visible: "无用户可见变化",
+          scope: "全部支付渠道回调、对账系统、沙箱联调环境",
+          paths: ["src/pay/callback/verify.ts"],
+          acceptance: "① 新算法验签通过；② 旧算法回调被拒绝且记录告警；③ 各渠道沙箱联调全部通过。",
+          action: "提前与支付渠道确认切换窗口；发布后监控验签失败率",
+          role: "财务 / 研发"
+        }),
+        F({
+          tag: "影响面", risk: "中", breaking: false,
+          title: "用户中心接口整体迁移至 /v2 前缀",
+          biz: "用户中心相关接口统一迁移到新版本前缀，接口能力不变但路径变更。使用旧路径的内部系统与外部对接方需同步调整。",
+          tech: "api/user/* 全量迁移至 /v2/user/*，旧路径保留 30 天 302 重定向后下线。",
+          visible: "无用户可见变化",
+          scope: "账号体系、风控、CRM、外部合作方接口调用",
+          paths: ["api/user/"],
+          acceptance: "① 新路径全部可用；② 旧路径重定向正常且在 30 天后下线；③ 调用方无 404 告警。",
+          action: "整理受影响调用方清单并逐一通知",
+          role: "研发 / 商务"
+        }),
+        F({
+          tag: "新增", risk: "中", breaking: false,
+          title: "售后支持部分退款",
+          biz: "售后单支持按商品行部分退款，无需整单退回。用户可只退其中一件商品，售后处理更灵活，也减少了因整单退款带来的履约成本。",
+          tech: "新增 aftersale/partial-refund.ts::refundPartial()，按行分摊优惠与运费后调用支付网关。",
+          visible: "售后申请页可选择具体商品行提交退款",
+          scope: "售后申请、退款计算、财务对账、客服工单",
+          paths: ["src/aftersale/partial-refund.ts"],
+          acceptance: "① 选择单个商品行提交退款成功；② 优惠券与运费按行正确分摊；③ 财务对账金额与退款单一致。",
+          action: "更新售后 SOP；财务确认分摊口径",
+          role: "客服 / 财务"
+        }),
+        F({
+          tag: "修复", risk: "中", breaking: false,
+          title: "秒杀场景下库存超卖",
+          biz: "秒杀活动在高并发下偶发超卖，导致部分订单无法发货。本次将库存扣减改为原子操作，超卖问题消除。",
+          tech: "seckill/stock/deduct.ts 中「查询后扣减」的两步操作替换为 Redis Lua 脚本原子扣减。",
+          visible: "秒杀下单成功率更稳定，不再出现下单后无货",
+          scope: "秒杀活动、库存中心、订单履约",
+          paths: ["src/seckill/stock/deduct.ts"],
+          acceptance: "① 压测 1 万并发下单，超出库存的请求全部失败；② 实际成交数等于库存数；③ 秒杀接口耗时无明显上升。",
+          action: "无需动作，知晓超卖投诉将消失",
+          role: "运营"
+        }),
+        F({
+          tag: "移除", risk: "中", breaking: true,
+          title: "停用短信验证码登录方式",
+          biz: "短信验证码登录入口正式关闭，用户需改用一键登录或密码登录。历史仅使用短信登录的账号需引导绑定，否则将无法登录。",
+          tech: "auth/sms.ts 中 loginBySms() 已删除，登录页入口同步移除，短信通道仅保留注册验证用途。",
+          visible: "登录页不再显示「短信验证码登录」，相关用户收到引导绑定的提示",
+          scope: "登录页、账号安全中心、客服找回账号流程",
+          paths: ["src/auth/sms.ts"],
+          acceptance: "① 登录页无短信登录入口；② 历史短信登录用户可收到绑定引导；③ 其他登录方式不受影响。",
+          action: "梳理历史短信登录用户名单，准备主动触达；客服备好找回流程",
+          role: "运营 / 客服"
+        })
+      ],
+      history: [
+        { d: "06-20", who: "架构组", text: "提出 3.0 重构，目标为事件驱动订单与多仓协同" },
+        { d: "07-15", who: "评审", text: "讨论稿计划保留 /v1 接口兼容一年", cls: "warn" },
+        { d: "09-02", who: "研发", text: "实现时决定 /v1 直接下线，仅保留 30 天重定向", cls: "warn" },
+        { d: "09-28", who: "研发", text: "短信登录实现为全量停用，未保留兼容开关", cls: "warn" },
+        { d: "10-14", who: "本产物", text: "以代码实际行为收口：3 项破坏性变更已标注并附带迁移动作", cls: "now" }
+      ],
+      highlights: ["检测到 3 项破坏性变更（旧接口下线 / 签名算法升级 / 登录方式停用）", "1 处常量级契约变更：接口前缀 /v1 → /v2"]
+    }
+  ];
+
+  var STEPS = [
+    {
+      t: "代码提交合并",
+      d: function (s) { return "git push · " + s.branch; },
+      exp: [
+        ["读", "读", "提交范围、分支引用、commit message"],
+        ["写", "写", "触发事件（ref + commit range）"],
+        ["失败", "f", "仅记录，不产生任何产物"]
+      ]
+    },
+    {
+      t: "CI 打包成功",
+      d: function (s) { return "build SUCCESS ⇒ webhook · " + s.ciRun; },
+      exp: [
+        ["读", "读", "构建状态、构建产物地址"],
+        ["写", "写", "构建号与产物指纹，作为文档的版本锚点"],
+        ["失败", "f", "构建失败则不触发，不会产生半成品文档"]
+      ]
+    },
+    {
+      t: "AST 解析变更结构",
+      d: function (s) { return "diff " + s.stats.files + " files · " + s.stats.modules + " modules"; },
+      exp: [
+        ["读", "读", "变更文件源码、符号增删、调用关系"],
+        ["写", "写", "结构化变更集（模块 / 符号 / 契约）"],
+        ["失败", "f", "降级为文件级 diff，仍可产出但粒度较粗"]
+      ]
+    },
+    {
+      t: "LLM 业务化语义改写",
+      d: function () { return "术语归一 · 影响面标注 · 验收要点"; },
+      exp: [
+        ["读", "读", "结构化变更集、企业术语表、历史版本文档"],
+        ["写", "写", "业务描述、影响面、运营动作与验收要点"],
+        ["失败", "f", "低置信项标记待人工确认，不静默编造"]
+      ]
+    },
+    {
+      t: "产物生成并归档",
+      d: function () { return "checklist · product-doc · trace"; },
+      exp: [
+        ["读", "读", "语义化结果与脱敏策略"],
+        ["写", "写", "功能点清单、产品文档、溯源文件"],
+        ["失败", "f", "归档失败重试 3 次并告警，不阻塞发布"]
+      ]
+    }
+  ];
+
+  /* ============================================================
+     2. 状态与工具
+     ============================================================ */
+
+  var S = { scene: "feature", tone: "business", mask: false, tab: "checklist",
+            running: false, done: false, openStep: -1 };
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  function esc(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+  function scene() {
+    for (var i = 0; i < SCENARIOS.length; i++) if (SCENARIOS[i].id === S.scene) return SCENARIOS[i];
+    return SCENARIOS[1];
+  }
+  function toneText(f) { return S.tone === "tech" ? f.tech : f.biz; }
+  function maskPath(p) {
+    if (!S.mask) return p;
+    var seg = String(p).split("/");
+    if (seg.length <= 2) return "***/" + seg[seg.length - 1];
+    return "***/***/" + seg.slice(-2).join("/");
+  }
+  function maskCommit(c) { return S.mask ? String(c).slice(0, 4) + "***" : String(c); }
+
+  var TAGCLS = { "新增": "t-new", "变更": "t-chg", "影响面": "t-imp", "修复": "t-fix", "移除": "t-rem" };
+
+  /* ============================================================
+     3. 左侧：输入代码
+     ============================================================ */
+
+  function renderInput() {
+    var s = scene();
+    $("inMeta").textContent = maskCommit(s.tip) + " · " + s.stats.files + " files";
+    var h = "";
+    h += '<div class="repo-head">' +
+      '<div class="repo-row"><span class="k">分支</span><span class="v branch">' + esc(s.branch) + '</span></div>' +
+      '<div class="repo-row"><span class="k">范围</span><span class="v">' + esc(S.mask ? "***" : s.range) + '</span></div>' +
+      '<div class="repo-row"><span class="k">变更量</span><span class="v">+' + s.stats.added + ' / −' + s.stats.removed +
+        ' · ' + s.stats.commits + ' commits</span></div>' +
+      '<div class="repo-row"><span class="k">触发</span><span class="v">' + esc(s.trigger) + '</span></div>' +
+      '</div>';
+
+    s.diffs.forEach(function (f, i) {
+      var st = f.st === "a" ? "a" : (f.st === "d" ? "d" : "m");
+      var stc = st === "a" ? "+" : (st === "d" ? "−" : "~");
+      h += '<div class="file" data-file="' + i + '">' +
+        '<div class="file-hd">' +
+          '<span class="st ' + st + '">' + stc + '</span>' +
+          '<span class="fn">' + esc(maskPath(f.file)) + '</span>' +
+          '<svg class="scan" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"/></svg>' +
+        '</div><div class="dl">';
+      f.lines.forEach(function (l) {
+        var g = l.t === "add" ? "+" : (l.t === "del" ? "−" : " ");
+        h += '<div class="ln ' + l.t + '"><span class="g">' + g + '</span><span>' + esc(l.s) + '</span></div>';
+      });
+      h += '</div></div>';
+    });
+
+    h += '<div class="code-note"><b>解析范围说明</b>：仅解析本次构建涉及的变更文件，不做全仓库扫描；' +
+         '解析结果为结构化变更集，是后续业务化改写的唯一事实来源。</div>';
+
+    $("inBody").innerHTML = h;
+  }
+
+  function resetScan() {
+    var fs = $("inBody").querySelectorAll(".file");
+    for (var i = 0; i < fs.length; i++) fs[i].classList.remove("scanned", "cursor");
+  }
+
+  /* ============================================================
+     4. 中间：流水线
+     ============================================================ */
+
+  function renderSteps() {
+    var s = scene();
+    var h = "";
+    STEPS.forEach(function (st, i) {
+      h += '<div class="step" data-step="' + i + '">' +
+        '<span class="sk"><span>' + (i + 1) + '</span></span>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div class="st">' + esc(st.t) + '</div>' +
+          '<div class="sd">' + esc(st.d(s)) + '</div>' +
+          '<div class="exp">' + st.exp.map(function (r) {
+            return '<div class="row"><span class="lb ' + (r[1] === "读" ? "r" : (r[1] === "写" ? "w" : "f")) + '">' +
+              esc(r[0]) + '</span><span>' + esc(r[2]) + '</span></div>';
+          }).join("") + '</div>' +
+        '</div>' +
+        '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>' +
+      '</div>';
+    });
+    $("steps").innerHTML = h;
+  }
+
+  function clearStepStates() {
+    var ss = $("steps").querySelectorAll(".step");
+    for (var i = 0; i < ss.length; i++) ss[i].classList.remove("active", "done");
+  }
+
+  /* 终端日志 */
+  var LOGS = {
+    patch: [
+      [0, "s", "git", "detect push → refs/heads/hotfix/export-truncate"],
+      [0, "s", "git", "range v2.13.3..e91b7a2 · 3 commits · 9 files"],
+      [0, "b", "ci", "build #2890 queued (node 20 · runner linux-x64)"],
+      [1, "b", "ci", "deps install ok · build SUCCESS · 2.6s"],
+      [1, "v", "hook", "post-build → docrelease/generate  ✔ 已接收"],
+      [2, "t", "ast", "parse 9 files (ts 6 · tsx 1 · go 2)"],
+      [2, "t", "ast", "symbols exported +7 · modified ~5 · removed -3"],
+      [2, "t", "ast", "module graph → 2 clusters: report, api"],
+      [2, "a", "ast", "⚠ 1 处接口新增可选参数，向后兼容"],
+      [3, "b", "llm", "model=qwen-max · prompt=docrelease/v3 · temp=0.2"],
+      [3, "b", "llm", "glossary 命中 11 术语（分片流式写出 / 退避重试 …）"],
+      [3, "b", "llm", "生成业务描述 3 条 · 影响面标注 1 条 · 置信度均值 0.93"],
+      [3, "b", "llm", "低置信项 0 条"],
+      [4, "g", "doc", "checklist.csv    1.2 KB"],
+      [4, "g", "doc", "product-doc.md   3.4 KB"],
+      [4, "g", "doc", "trace.json       2.1 KB"],
+      [4, "a", "store", "archive → docs/release/v2.13.4/  ✔ 落库"],
+      [4, "g", "done", "文档与构建同源同版本 · 可交付验收"]
+    ],
+    feature: [
+      [0, "s", "git", "detect push → refs/heads/release/v2.14.0"],
+      [0, "s", "git", "range v2.13.3..7f3c1a · 47 commits · 42 files"],
+      [0, "b", "ci", "build #2941 queued (node 20 · runner linux-x64)"],
+      [1, "b", "ci", "deps install ok (312 pkgs, 18.4s)"],
+      [1, "b", "ci", "build SUCCESS · 4.2s · artifact app-2.14.0.tar.gz"],
+      [1, "v", "hook", "post-build → docrelease/generate  ✔ 已接收"],
+      [2, "t", "ast", "parse 42 files (ts 28 · tsx 6 · go 8)"],
+      [2, "t", "ast", "symbols exported +19 · modified ~11 · removed -4"],
+      [2, "t", "ast", "module graph → 6 clusters: order, aftersale, report, goods, member, api"],
+      [2, "a", "ast", "⚠ 常量变更影响外部契约: REFUND_WINDOW_DAYS 7 → 15"],
+      [3, "b", "llm", "model=qwen-max · prompt=docrelease/v3 · temp=0.2"],
+      [3, "b", "llm", "glossary 命中 34 术语（券叠加 / 预计到手价 / 权益校验 …）"],
+      [3, "b", "llm", "生成业务描述 6 条 · 影响面标注 3 条 · 置信度均值 0.91"],
+      [3, "b", "llm", "低置信项 0 条"],
+      [4, "g", "doc", "checklist.csv    2.4 KB"],
+      [4, "g", "doc", "product-doc.md   7.1 KB"],
+      [4, "g", "doc", "trace.json       3.4 KB"],
+      [4, "a", "store", "archive → docs/release/v2.14.0/  ✔ 落库"],
+      [4, "g", "done", "文档与构建同源同版本 · 可交付验收"]
+    ],
+    major: [
+      [0, "s", "git", "detect push → refs/heads/release/3.0.0"],
+      [0, "s", "git", "range v2.14.0..4a9c0fe · 168 commits · 214 files"],
+      [0, "b", "ci", "build #3102 queued (go 1.23 + node 20 · runner linux-x64)"],
+      [1, "b", "ci", "deps install ok · build SUCCESS · 96.8s"],
+      [1, "b", "ci", "artifact order-center-3.0.0.tar.gz · image sha 9f21c4"],
+      [1, "v", "hook", "post-build → docrelease/generate  ✔ 已接收"],
+      [2, "t", "ast", "parse 214 files (ts 121 · tsx 44 · go 49)"],
+      [2, "t", "ast", "symbols exported +86 · modified ~54 · removed -31"],
+      [2, "t", "ast", "module graph → 14 clusters"],
+      [2, "r", "ast", "⚠ 破坏性变更 3 项：/v1 接口下线 · 签名算法升级 · 登录方式停用"],
+      [2, "a", "ast", "⚠ 接口前缀迁移: /v1 → /v2（用户中心全量）"],
+      [3, "b", "llm", "model=qwen-max · prompt=docrelease/v3 · temp=0.2"],
+      [3, "b", "llm", "glossary 命中 96 术语"],
+      [3, "b", "llm", "生成业务描述 8 条 · 影响面标注 5 条 · 置信度均值 0.88"],
+      [3, "a", "llm", "低置信项 1 条已标记待人工确认：多仓分配优先级表述"],
+      [4, "g", "doc", "checklist.csv    3.8 KB"],
+      [4, "g", "doc", "product-doc.md  11.6 KB"],
+      [4, "g", "doc", "trace.json       5.2 KB"],
+      [4, "a", "store", "archive → docs/release/v3.0.0/  ✔ 落库"],
+      [4, "r", "done", "含破坏性变更 · 已置顶标注迁移动作"]
+    ]
+  };
+
+  function logLine(tgCls, tg, msg) {
+    var d = document.createElement("div");
+    d.className = "lg " + tgCls;
+    d.innerHTML = '<span class="tg">' + esc(tg) + '</span><span class="ms">' + msg + '</span>';
+    var term = $("term");
+    term.appendChild(d);
+    term.scrollTop = term.scrollHeight;
+  }
+
+  function termReset() {
+    var s = scene();
+    $("term").innerHTML =
+      '<div class="term-empty">' +
+        '<div><span class="p">$</span> docrelease watch --repo=order-center</div>' +
+        '<div>已挂载 CI 钩子 · 监听 ' + esc(s.branch) + '</div>' +
+        '<div style="margin-top:10px;color:#5a6784">等待构建成功后自动触发…</div>' +
+      '</div>';
+  }
+
+  /* ============================================================
+     5. 右侧：产物
+     ============================================================ */
+
+  function outEmpty() {
+    var s = scene();
+    $("outMeta").textContent = "等待生成";
+    $("expBtn").classList.add("hidden");
+    $("outBody").innerHTML =
+      '<div class="out-empty">' +
+        '<svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5z"/><path d="M14 3v5h5"/><path d="M9 13h6"/><path d="M9 17h4"/></svg>' +
+        '<p>运行后，同一份发布将自动产出三类产物。<br>左边是它的输入，中间是生成过程。</p>' +
+        '<div class="path">docs/release/' + esc(s.version) + '/</div>' +
+      '</div>';
+  }
+
+  /* ---- 产物 1：功能点清单 ---- */
+  function checklistHTML() {
+    var s = scene();
+    var rows = s.features.map(function (f, i) {
+      var rk = f.risk === "高" ? "high" : (f.risk === "中" ? "mid" : "low");
+      return "<tr>" +
+        "<td>" + (i + 1) + "</td>" +
+        '<td><span class="tag ' + TAGCLS[f.tag] + '">' + f.tag + "</span></td>" +
+        '<td><span class="ttl">' + esc(f.title) + "</span>" +
+          (f.breaking ? '<div style="margin-top:3px"><span class="chip" style="background:var(--rose-soft);color:#b23a44;border-color:#f7d2d5">破坏性变更</span></div>' : "") +
+        "</td>" +
+        "<td>" + esc(toneText(f)) + "</td>" +
+        "<td>" + esc(f.scope) + "</td>" +
+        '<td><span class="risk ' + rk + '">' + f.risk + "</span></td>" +
+        "<td>" + esc(f.acceptance) + "</td>" +
+        "</tr>";
+    }).join("");
+
+    var cnt = {};
+    s.features.forEach(function (f) { cnt[f.tag] = (cnt[f.tag] || 0) + 1; });
+    var brk = s.features.filter(function (f) { return f.breaking; }).length;
+
+    return '<div class="doc-hd">' +
+        '<div><div class="vt">' + esc(s.version) + '</div>' +
+        '<div class="sub">checklist · ' + esc(maskCommit(s.tip)) + ' · ' + s.stats.modules + ' modules</div></div>' +
+        '<div class="rt">' +
+          '<span class="chip auto">自动生成</span>' +
+          (S.mask ? '<span class="chip mask">已脱敏</span>' : "") +
+          (brk ? '<span class="chip" style="background:var(--rose-soft);color:#b23a44;border-color:#f7d2d5">' + brk + ' 项破坏性变更</span>' : "") +
+        "</div></div>" +
+      '<div class="stats">' +
+        '<div class="stat"><div class="n g">' + (cnt["新增"] || 0) + '</div><div class="l">新增</div></div>' +
+        '<div class="stat"><div class="n a">' + (cnt["变更"] || 0) + '</div><div class="l">变更</div></div>' +
+        '<div class="stat"><div class="n v">' + (cnt["影响面"] || 0) + '</div><div class="l">影响面</div></div>' +
+        '<div class="stat"><div class="n r">' + (cnt["修复"] || 0) + '</div><div class="l">修复</div></div>' +
+        (cnt["移除"] ? '<div class="stat"><div class="n">' + cnt["移除"] + '</div><div class="l">移除</div></div>' : "") +
+        '<div class="stat"><div class="n b">' + s.features.length + '</div><div class="l">功能点合计</div></div>' +
+      "</div>" +
+      '<div class="sec-t"><span class="idx">清单</span>上线功能点清单 <span class="cn">' +
+        s.stats.commits + " commits · " + s.stats.files + " files · " + s.days + "</span></div>" +
+      '<div class="tbl-wrap"><table><thead><tr>' +
+        "<th>#</th><th>分类</th><th>功能点</th><th>业务说明（" + (S.tone === "tech" ? "技术表述" : "业务表述") + "）</th>" +
+        "<th>影响范围</th><th>风险</th><th>验收要点</th>" +
+      "</tr></thead><tbody>" + rows + "</tbody></table></div>" +
+      '<div class="note-box blue"><b>怎么用</b>：运营按「验收要点」逐条验收，按「影响范围」判断要不要培训；' +
+      '研发按「业务说明」确认意图是否被正确理解。两条链路读的是同一份产物，口径不会漂移。</div>';
+  }
+
+  /* ---- 产物 2：产品文档 ---- */
+  function docHTML() {
+    var s = scene();
+    var brk = s.features.filter(function (f) { return f.breaking; });
+
+    var fbody = s.features.map(function (f, i) {
+      var rk = f.risk === "高" ? "high" : (f.risk === "中" ? "mid" : "low");
+      return '<div class="frow">' +
+        '<div class="fh">' +
+          '<span class="tag ' + TAGCLS[f.tag] + '">' + f.tag + "</span>" +
+          '<span class="ttl">' + (i + 1) + ". " + esc(f.title) + "</span>" +
+          '<span class="risk ' + rk + '">风险 ' + f.risk + "</span>" +
+        "</div>" +
+        "<p>" + esc(toneText(f)) + "</p>" +
+        '<div class="kv"><span class="k">可见变化</span><span class="v">' + esc(f.visible) + "</span>" +
+        '<span class="k">影响范围</span><span class="v">' + esc(f.scope) + "</span>" +
+        '<span class="k">代码路径</span><span class="v">' +
+          f.paths.map(function (p) { return '<span class="pl">' + esc(maskPath(p)) + "</span>"; }).join("") +
+        "</span></div>" +
+        (f.breaking ? '<div class="acc" style="background:var(--rose-soft);color:#a83a43"><b>破坏性变更</b>：需在发布前完成对接方迁移，详见第五章运营动作。</div>' : "") +
+        "</div>";
+    }).join("");
+
+    var actRows = s.features.map(function (f) {
+      return "<tr><td><span class=\"ttl\">" + esc(f.action) + "</span></td><td>" + esc(f.role) + "</td><td>" +
+        '<span class="tag ' + TAGCLS[f.tag] + '">' + f.tag + "</span></td></tr>";
+    }).join("");
+
+    var accRows = s.features.map(function (f, i) {
+      return '<tr><td>' + (i + 1) + '</td><td><span class="ttl">' + esc(f.title) + "</span></td><td>" + esc(f.acceptance) + "</td></tr>";
+    }).join("");
+
+    var h = '<div class="doc-hd">' +
+        '<div><div class="vt">' + esc(s.version) + ' 业务化产品文档</div>' +
+        '<div class="sub">product-doc.md · 由 CI 构建成功后自动生成，未经人工撰写</div></div>' +
+        '<div class="rt"><span class="chip auto">自动生成</span>' +
+        (S.mask ? '<span class="chip mask">已脱敏</span>' : "") + "</div></div>";
+
+    h += '<div class="sec-t"><span class="idx">一</span>文档信息</div>' +
+      '<div class="tbl-wrap"><table><tbody>' +
+      "<tr><th style=\"width:132px\">版本号</th><td class=\"mono\">" + esc(s.version) + "</td></tr>" +
+      "<tr><th>代码基线</th><td class=\"mono\">" + esc(s.branch) + " @ " + esc(maskCommit(s.tip)) + "</td></tr>" +
+      "<tr><th>触发方式</th><td class=\"mono\">ci.build.success · " + esc(S.mask ? "***" : s.ciRun) + "</td></tr>" +
+      "<tr><th>解析范围</th><td>" + s.stats.files + " 个变更文件 · " + s.stats.modules + " 个模块 · +" + s.stats.added + " / −" + s.stats.removed + " 行</td></tr>" +
+      "<tr><th>术语风格</th><td>" + (S.tone === "tech" ? "偏技术（保留符号与字段原名）" : "偏业务（面向运营与客服）") + "</td></tr>" +
+      "<tr><th>脱敏状态</th><td>" + (S.mask ? "已脱敏 · 仓库路径与提交指纹按策略处理" : "未脱敏 · 仅限内部流转") + "</td></tr>" +
+      "</tbody></table></div>";
+
+    h += '<div class="sec-t"><span class="idx">二</span>本次发布概览</div>' +
+      '<p style="font-size:13px;color:var(--ink-2);line-height:1.8">本次发布累计 ' + s.stats.commits +
+      " 个提交，涉及 " + s.stats.files + " 个文件、共 " + s.features.length + " 项业务能力变化，开发跨度约 " + s.days +
+      "。" + (brk.length ? "其中包含 " + brk.length + " 项破坏性变更，须在发布前完成对接方迁移。" : "本次变更全部向后兼容，无需对接方改造。") + "</p>";
+
+    h += '<div class="sec-t"><span class="idx">三</span>业务能力变更明细</div>' + fbody;
+
+    h += '<div class="sec-t"><span class="idx">四</span>影响范围与兼容性</div>' +
+      '<div class="tbl-wrap"><table><thead><tr><th>维度</th><th>结论</th></tr></thead><tbody>' +
+      "<tr><td>下游系统</td><td>" + (brk.length ? "存在破坏性变更，涉及接口下线、签名升级或入口停用，需按第五章动作逐项迁移" : "以新增可选参数与新增字段为主，未发现破坏性变更") + "</td></tr>" +
+      "<tr><td>历史数据</td><td>新增字段对历史数据取默认值，不触发数据回刷</td></tr>" +
+      "<tr><td>客户端兼容</td><td>" + (brk.length ? "旧版本客户端受接口变更影响，需同步引导升级" : "新旧客户端均可正常使用") + "</td></tr>" +
+      "<tr><td>回滚影响</td><td>回滚后文档随版本一并归档，历史版本文档可追溯</td></tr>" +
+      "</tbody></table></div>";
+
+    h += '<div class="sec-t"><span class="idx">五</span>运营侧需同步的动作</div>' +
+      '<div class="tbl-wrap"><table><thead><tr><th>待办动作</th><th>负责角色</th><th>变更类型</th></tr></thead><tbody>' +
+      actRows + "</tbody></table></div>";
+
+    h += '<div class="sec-t"><span class="idx">六</span>验收要点</div>' +
+      '<div class="tbl-wrap"><table><thead><tr><th>#</th><th>功能点</th><th>验收方式与判定标准</th></tr></thead><tbody>' +
+      accRows + "</tbody></table></div>";
+
+    h += '<div class="sec-t"><span class="idx">七</span>变更留痕与决策溯源</div>' +
+      '<div class="tl">' + s.history.map(function (it) {
+        return '<div class="it ' + (it.cls || "") + '">' +
+          '<div class="d">' + esc(it.d) + '<span class="who">' + esc(it.who) + "</span>" +
+          (it.cls === "warn" ? '<span class="dv">与最终实现不一致</span>' : "") + "</div>" +
+          '<div class="x">' + esc(it.text) + "</div></div>";
+      }).join("") + "</div>" +
+      '<div class="note-box"><b>留痕的意义</b>：讨论稿不必被推翻，但要留下轨迹。' +
+      "文档描述的是系统实际行为，讨论过程中的设想以留痕形式并存，避免有人按未实现的方案理解系统。</div>";
+
+    h += '<div class="sec-t"><span class="idx">八</span>附录 · 生成说明与能力边界</div>' +
+      '<p style="font-size:13px;color:var(--ink-2);line-height:1.8">本文件由释文 DocRelease 于 CI 构建成功后自动生成，与构建产物同源同版本。' +
+      "文中「业务说明」由 AST 解析结果经术语表归一后改写，" + (S.tone === "tech" ? "当前为偏技术表述，保留符号与字段原名。" : "当前为偏业务表述，已隐去符号细节。") + "</p>" +
+      '<div class="note-box"><b>能力边界</b>：本文件只记录「已进入代码的变更」。口头约定、临时放宽的执行尺度、未落地的决策方案不会出现在变更描述中。' +
+      "请将其理解为「系统实际行为的权威描述」，而非「团队所有决策的完整记录」。</div>";
+
+    return h;
+  }
+
+  /* ---- 产物 3：溯源文件 ---- */
+  function traceObj() {
+    var s = scene();
+    var brk = s.features.filter(function (f) { return f.breaking; }).length;
+    return {
+      release: {
+        version: s.version,
+        branch: s.branch,
+        commit: maskCommit(s.tip),
+        range: S.mask ? "***" : s.range,
+        ciRun: S.mask ? "***" : s.ciRun,
+        generatedAt: "2026-10-14T11:15:50+08:00",
+        generator: "docrelease/1.4.0"
+      },
+      source: {
+        commits: s.stats.commits, files: s.stats.files, modules: s.stats.modules,
+        linesAdded: s.stats.added, linesRemoved: s.stats.removed
+      },
+      pipeline: STEPS.map(function (st, i) {
+        return { step: i + 1, name: st.t, ok: true, ms: [120, 260, 840, 2140, 610][i] };
+      }),
+      llm: {
+        model: "qwen-max", prompt: "docrelease/v3", temperature: 0.2,
+        tokens: { input: s.stats.files * 420, output: s.features.length * 560 },
+        glossaryHits: s.stats.files * 1.6 | 0,
+        confidence: s.id === "major" ? 0.88 : (s.id === "feature" ? 0.91 : 0.93),
+        lowConfidence: s.id === "major" ? ["多仓分配优先级表述"] : []
+      },
+      output: {
+        tone: S.tone, masked: S.mask, tonePolicy: S.tone === "tech" ? "keep-symbols" : "business-first"
+      },
+      artifacts: [
+        { name: "checklist.csv", bytes: s.id === "major" ? 3891 : (s.id === "feature" ? 2458 : 1229), kind: "checklist" },
+        { name: "product-doc.md", bytes: s.id === "major" ? 11872 : (s.id === "feature" ? 7270 : 3482), kind: "document" },
+        { name: "trace.json", bytes: s.id === "major" ? 5324 : (s.id === "feature" ? 3481 : 2150), kind: "trace" }
+      ],
+      risk: { breakingChanges: brk, sensitiveReplaced: S.mask ? s.stats.files : 0 },
+      retention: { archive: "docs/release/" + s.version + "/", keepVersions: 24, immutable: true }
+    };
+  }
+
+  function hlJSON(o) {
+    var t = esc(JSON.stringify(o, null, 2));
+    return t
+      .replace(/&quot;([^&]*?)&quot;(\s*:)/g, '<span class="jk">"$1"</span>$2')
+      .replace(/:\s*&quot;([^&]*?)&quot;/g, ': <span class="js">"$1"</span>')
+      .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="jn">$1</span>')
+      .replace(/\b(true|false|null)\b/g, '<span class="jb">$1</span>');
+  }
+
+  function traceHTML() {
+    var s = scene();
+    return '<div class="doc-hd">' +
+        '<div><div class="vt">trace.json</div>' +
+        '<div class="sub">溯源文件 · 供审计与复盘使用</div></div>' +
+        '<div class="rt"><span class="chip auto">自动生成</span>' +
+        (S.mask ? '<span class="chip mask">已脱敏</span>' : "") + "</div></div>" +
+      '<div class="json">' + hlJSON(traceObj()) + "</div>" +
+      '<div class="note-box blue"><b>为什么要有这个文件</b>：当有人问「这条功能是哪个版本上的、依据哪次构建、' +
+      "当时的文档写了什么」，不必翻聊天记录。这条链路可审计、可复盘，也是「上线与文档一致」的技术证据。</div>";
+  }
+
+  function renderOut() {
+    if (!S.done) { outEmpty(); return; }
+    var s = scene();
+    $("outMeta").textContent = "3 个文件 · docs/release/" + s.version + "/";
+    $("expBtn").classList.remove("hidden");
+    if (S.tab === "checklist") $("outBody").innerHTML = checklistHTML();
+    else if (S.tab === "doc") $("outBody").innerHTML = docHTML();
+    else $("outBody").innerHTML = traceHTML();
+  }
+
+  /* ============================================================
+     6. 导出
+     ============================================================ */
+
+  function download(name, text, mime) {
+    var blob = new Blob([text], { type: mime || "text/plain;charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1200);
+  }
+
+  function toCSV() {
+    var s = scene();
+    var q = function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; };
+    var lines = ["序号,分类,功能点,业务说明,影响范围,风险,代码路径,验收要点,运营动作,负责角色,破坏性变更"];
+    s.features.forEach(function (f, i) {
+      lines.push([i + 1, f.tag, f.title, toneText(f), f.scope, f.risk,
+        f.paths.map(maskPath).join(" "), f.acceptance, f.action, f.role,
+        f.breaking ? "是" : "否"].map(q).join(","));
+    });
+    return "\ufeff" + lines.join("\r\n");
+  }
+
+  function toMD() {
+    var s = scene();
+    var L = [];
+    L.push("# " + s.version + " 业务化产品文档", "");
+    L.push("> 由释文 DocRelease 于 CI 构建成功后自动生成，未经人工撰写。" + (S.mask ? "（已脱敏）" : ""), "");
+    L.push("## 一、文档信息", "");
+    L.push("| 项 | 值 |", "| --- | --- |");
+    L.push("| 版本号 | " + s.version + " |");
+    L.push("| 代码基线 | " + s.branch + " @ " + maskCommit(s.tip) + " |");
+    L.push("| 触发方式 | ci.build.success " + (S.mask ? "***" : s.ciRun) + " |");
+    L.push("| 解析范围 | " + s.stats.files + " files · " + s.stats.modules + " modules |");
+    L.push("| 术语风格 | " + (S.tone === "tech" ? "偏技术" : "偏业务") + " |");
+    L.push("| 脱敏状态 | " + (S.mask ? "已脱敏" : "未脱敏") + " |", "");
+    L.push("## 二、本次发布概览", "");
+    L.push("本次发布累计 " + s.stats.commits + " 个提交，涉及 " + s.stats.files + " 个文件、" +
+      s.features.length + " 项业务能力变化，开发跨度约 " + s.days + "。", "");
+    L.push("## 三、业务能力变更明细", "");
+    s.features.forEach(function (f, i) {
+      L.push("### " + (i + 1) + ". [" + f.tag + "] " + f.title, "");
+      L.push(toneText(f), "");
+      L.push("- **用户可见变化**：" + f.visible);
+      L.push("- **影响范围**：" + f.scope);
+      L.push("- **代码路径**：" + f.paths.map(maskPath).join("、"));
+      L.push("- **风险等级**：" + f.risk + (f.breaking ? "（破坏性变更）" : ""), "");
+    });
+    L.push("## 四、影响范围与兼容性", "");
+    L.push("## 五、运营侧需同步的动作", "");
+    L.push("| 待办动作 | 负责角色 |", "| --- | --- |");
+    s.features.forEach(function (f) { L.push("| " + f.action + " | " + f.role + " |"); });
+    L.push("", "## 六、验收要点", "");
+    L.push("| # | 功能点 | 验收方式与判定标准 |", "| --- | --- | --- |");
+    s.features.forEach(function (f, i) { L.push("| " + (i + 1) + " | " + f.title + " | " + f.acceptance + " |"); });
+    L.push("", "## 七、变更留痕与决策溯源", "");
+    s.history.forEach(function (it) { L.push("- **" + it.d + " · " + it.who + "**（" + (it.cls === "warn" ? "与最终实现不一致" : "已确认") + "）：" + it.text); });
+    L.push("", "## 八、附录 · 生成说明与能力边界", "");
+    L.push("本文件只记录「已进入代码的变更」。口头约定、临时放宽的执行尺度、未落地的决策方案不会出现在变更描述中。", "");
+    return L.join("\n");
+  }
+
+  function doExport() {
+    var s = scene();
+    if (S.tab === "checklist") download("功能点清单_" + s.version + ".csv", toCSV(), "text/csv;charset=utf-8");
+    else if (S.tab === "doc") download("业务化产品文档_" + s.version + ".md", toMD(), "text/markdown;charset=utf-8");
+    else download("trace_" + s.version + ".json", JSON.stringify(traceObj(), null, 2), "application/json;charset=utf-8");
+  }
+
+  /* ============================================================
+     7. 运行流水线
+     ============================================================ */
+
+  var timers = [];
+  function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+  var STEP_MS = 760, LINE_MS = 155;
+
+  function setLive(cls, txt) {
+    $("live").className = "live " + cls;
+    $("liveTxt").textContent = txt;
+  }
+
+  function resetAll(keepDone) {
+    clearTimers();
+    S.running = false;
+    if (!keepDone) { S.done = false; }
+    resetScan();
+    clearStepStates();
+    $("pipeBar").style.width = "0%";
+    $("runBtn").disabled = false;
+    $("runBtn").classList.remove("is-run");
+    $("runBtn").querySelector("svg").innerHTML = '<path d="M8 5.5v13l11-6.5-11-6.5z"/>';
+    $("runLabel").textContent = "运行发布";
+    $("skipBtn").classList.add("hidden");
+    setLive("", "待触发 · " + scene().branch);
+    termReset();
+    renderOut();
+  }
+
+  function finish() {
+    S.running = false;
+    S.done = true;
+    var s = scene();
+    var brk = s.features.filter(function (f) { return f.breaking; }).length;
+    setLive(brk ? "ok" : "ok", (brk ? "已完成（含破坏性变更）· " : "已完成 · ") + s.version);
+    $("pipeBar").style.width = "100%";
+    $("runBtn").disabled = false;
+    $("runBtn").querySelector("svg").innerHTML =
+      '<path d="M4 5h16v2H4zM4 11h16v2H4zM4 17h16v2H4z"/>';
+    $("runLabel").textContent = "重新演示";
+    $("skipBtn").classList.add("hidden");
+    renderOut();
+  }
+
+  function run(instant) {
+    if (S.running) return;
+    S.done = false;
+    resetAll(true);
+    S.running = true;
+    renderOut();
+    var s = scene();
+    var logs = LOGS[s.id];
+    var byStep = [];
+    for (var i = 0; i < STEPS.length; i++) byStep.push(logs.filter(function (l) { return l[0] === i; }));
+
+    $("term").innerHTML = "";
+    $("runBtn").disabled = true;
+    $("runBtn").classList.add("is-run");
+    $("runBtn").querySelector("svg").innerHTML =
+      '<path d="M12 3a9 9 0 1 0 9 9"/><path d="M21 3v6h-6"/>';
+    $("runLabel").textContent = instant ? "生成中…" : "运行中…";
+    if (!instant) $("skipBtn").classList.remove("hidden");
+    setLive("on", "运行中 · 0 / " + STEPS.length);
+    logLine("g", "exec", "docrelease run --from=ci.build.success --repo=order-center");
+
+    if (instant) {
+      var steps = $("steps").querySelectorAll(".step");
+      var fss = $("inBody").querySelectorAll(".file");
+      for (var a = 0; a < steps.length; a++) steps[a].classList.add("done");
+      for (var b = 0; b < fss.length; b++) fss[b].classList.add("scanned");
+      $("pipeBar").style.width = "100%";
+      byStep.forEach(function (ls) { ls.forEach(function (l) { logLine(l[1], l[2], l[3]); }); });
+      finish();
+      return;
+    }
+
+    STEPS.forEach(function (st, si) {
+      var t0 = si * STEP_MS;
+      timers.push(setTimeout(function () {
+        var all = $("steps").querySelectorAll(".step");
+        for (var k = 0; k < all.length; k++) all[k].classList.remove("active");
+        all[si].classList.add("active");
+        setLive("on", "运行中 · " + (si + 1) + " / " + STEPS.length);
+        $("pipeBar").style.width = ((si + 0.5) / STEPS.length * 100) + "%";
+      }, t0));
+
+      /* 第 3 步：逐文件「被解析」高亮 */
+      if (si === 2) {
+        var fs = $("inBody").querySelectorAll(".file");
+        for (var fi = 0; fi < fs.length; fi++) {
+          (function (el, idx) {
+            timers.push(setTimeout(function () {
+              var list = $("inBody").querySelectorAll(".file");
+              for (var k = 0; k < list.length; k++) list[k].classList.remove("cursor");
+              el.classList.add("scanned", "cursor");
+            }, t0 + 60 + idx * 150));
+          })(fs[fi], fi);
+        }
+      }
+
+      var lines = byStep[si];
+      var span = STEP_MS * 0.72;
+      lines.forEach(function (l, li) {
+        timers.push(setTimeout(function () {
+          logLine(l[1], l[2], l[3]);
+        }, t0 + 40 + li * Math.max(70, span / Math.max(1, lines.length))));
+      });
+
+      timers.push(setTimeout(function () {
+        var all = $("steps").querySelectorAll(".step");
+        all[si].classList.remove("active");
+        all[si].classList.add("done");
+        $("pipeBar").style.width = ((si + 1) / STEPS.length * 100) + "%";
+      }, t0 + span + 60));
+    });
+
+    timers.push(setTimeout(function () {
+      var list = $("inBody").querySelectorAll(".file");
+      for (var k = 0; k < list.length; k++) list[k].classList.remove("cursor");
+      if (S.mask) logLine("a", "mask", "已按脱敏策略处理：仓库路径 " + s.stats.files + " 处 · 提交指纹 " + s.stats.files + " 处");
+      finish();
+    }, STEPS.length * STEP_MS + 220));
+  }
+
+  /* ============================================================
+     8. 初始化与事件
+     ============================================================ */
+
+  function segScene() {
+    $("sceneSeg").innerHTML = SCENARIOS.map(function (s) {
+      return '<button data-scene="' + s.id + '" aria-pressed="' + (s.id === S.scene) + '">' +
+        esc(s.name) + '<span class="v">' + esc(s.version) + '</span></button>';
+    }).join("");
+  }
+
+  function renderAll() {
+    resetAll(false);
+    renderInput();
+    renderSteps();
+  }
+
+  /* 场景切换 */
+  $("sceneSeg").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-scene]");
+    if (!b || S.running) return;
+    S.scene = b.getAttribute("data-scene");
+    var bs = $("sceneSeg").querySelectorAll("button");
+    for (var i = 0; i < bs.length; i++) bs[i].setAttribute("aria-pressed", String(bs[i] === b));
+    S.openStep = -1;
+    renderAll();
+  });
+
+  /* 术语风格 */
+  $("toneSeg").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-tone]");
+    if (!b) return;
+    S.tone = b.getAttribute("data-tone");
+    var bs = $("toneSeg").querySelectorAll("button");
+    for (var i = 0; i < bs.length; i++) bs[i].setAttribute("aria-pressed", String(bs[i] === b));
+    if (S.done) renderOut();   /* 参数改变即时反映到产物 */
+  });
+
+  /* 脱敏开关 */
+  $("maskSw").addEventListener("change", function () {
+    S.mask = this.checked;
+    renderInput();
+    if (S.done) {
+      renderOut();
+      logLine("a", "mask", S.mask ? "输出已切换为脱敏模式，重新渲染产物" : "输出已切换为未脱敏模式，重新渲染产物");
+    }
+  });
+
+  /* 产物 Tab */
+  $("tabs").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-tab]");
+    if (!b) return;
+    S.tab = b.getAttribute("data-tab");
+    var bs = $("tabs").querySelectorAll("[data-tab]");
+    for (var i = 0; i < bs.length; i++) bs[i].setAttribute("aria-pressed", String(bs[i] === b));
+    renderOut();
+  });
+
+  /* 步骤展开 */
+  $("steps").addEventListener("click", function (e) {
+    var st = e.target.closest(".step");
+    if (!st) return;
+    var i = parseInt(st.getAttribute("data-step"), 10);
+    var els = $("steps").querySelectorAll(".step");
+    if (S.openStep === i) { st.classList.remove("open"); S.openStep = -1; return; }
+    for (var k = 0; k < els.length; k++) els[k].classList.remove("open");
+    st.classList.add("open");
+    S.openStep = i;
+  });
+
+  $("runBtn").addEventListener("click", function () { run(false); });
+  $("skipBtn").addEventListener("click", function () {
+    clearTimers();
+    var steps = $("steps").querySelectorAll(".step");
+    for (var i = 0; i < steps.length; i++) { steps[i].classList.remove("active"); steps[i].classList.add("done"); }
+    var fs = $("inBody").querySelectorAll(".file");
+    for (var k = 0; k < fs.length; k++) fs[k].classList.add("scanned");
+    var s = scene();
+    LOGS[s.id].forEach(function (l) { logLine(l[1], l[2], l[3]); });
+    finish();
+  });
+  $("expBtn").addEventListener("click", doExport);
+
+  /* 启动 */
+  segScene();
+  renderAll();
+  /* 首次进入给出一次轻微提示，不自动播放 */
+  (function hint() {
+    var btn = $("runBtn"), n = 0;
+    var iv = setInterval(function () {
+      n++;
+      btn.style.boxShadow = n % 2 ? "0 4px 14px rgba(47,91,255,.28)" : "0 4px 14px rgba(47,91,255,.28), 0 0 0 7px rgba(47,91,255,.14)";
+      if (n >= 6) { clearInterval(iv); btn.style.boxShadow = ""; }
+    }, 420);
+  })();
+})();
+</script>
+</body>
+</html>

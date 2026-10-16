@@ -14,11 +14,12 @@
   - 海报脚本
   - 培训课件大纲
 - 一键复制、下载单页、导出全部 Markdown
+- 解析结果管理：首次解析结果自动存入数据库，同文档再次解析直接返回历史结果；四类要点支持条目级增删改，保存后用于重新生成物料
 - 编辑与审核工作流：生成后可保存为草稿，编辑后提交审核，reviewer 通过/驳回，仅 approved 资产可下载
 
 ## 技术栈
 
-- 后端：Python 3.11、FastAPI、SQLAlchemy 2.0 async、aiosqlite、python-docx、httpx、passlib、python-jose、DeepSeek API
+- 后端：Python 3.11、FastAPI、SQLAlchemy 2.0 async、aiosqlite、python-docx、httpx、requests、passlib、python-jose、星语/Xingyu 或 DeepSeek API
 - 前端：Vue 3 + TypeScript + Vite + Element Plus + Pinia + Vue Router + Axios + marked
 
 ## 启动
@@ -30,7 +31,7 @@ cd backend
 python -m venv venv
 .\venv\Scripts\python.exe -m pip install -r requirements.txt
 copy .env.example .env
-# 编辑 .env，填入 DEEPSEEK_API_KEY
+# 编辑 .env，默认使用星语 API；如需切回 DeepSeek，设置 LLM_PROVIDER=deepseek 并填入 DEEPSEEK_API_KEY
 .\venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
@@ -43,6 +44,21 @@ npm run dev
 ```
 
 访问 http://localhost:5173/
+
+## 解析结果管理
+
+1. 首次解析调用大模型（星语 / DeepSeek），结果自动存入数据库。
+2. 同一文档再次解析时直接返回历史结果，避免重复调用模型。
+3. 解析出的四类要点支持条目级增删改，保存后用于重新生成物料。
+
+## 生成物料缓存与编辑
+
+1. 解析接口立即返回；系统随后在后台为当前受众预热生成全部 6 种物料，每种物料完成即写入数据库缓存。
+2. 生成的物料内容按 `source_title + audience + material_type + analysis_hash` 自动存入数据库，`analysis_hash` 由四类要点内容计算得出。
+3. 切换受众、物料类型时，若解析结果未改动且预热已完成则直接返回历史结果；预热未完成时会复用同一在飞生成任务，不会重复调用大模型。
+4. 在左侧修改解析结果并保存后，再次生成同一组合会基于新解析结果重新调用模型。
+5. 当前物料可点击「编辑」进入 Markdown 编辑模式，保存后更新缓存，后续同一解析内容生成时直接返回编辑后的内容。
+6. 6 种物料通过 `asyncio.gather` 并发生成，较串行生成显著降低首次生成等待时间。
 
 ## 编辑与审核流程
 
@@ -70,6 +86,10 @@ npm run build
 ## 环境变量
 
 ```env
+# 默认使用星语 API；设置为 deepseek 时需提供以下 Key
+LLM_PROVIDER=xingyu
+
+# 仅当 LLM_PROVIDER=deepseek 时必填
 DEEPSEEK_API_KEY=sk-xxx
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-chat

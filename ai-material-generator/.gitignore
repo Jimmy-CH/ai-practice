@@ -12,6 +12,9 @@ ENV/
 # Environment
 .env
 
+# SQLite databases
+*.db
+
 # IDEs
 .idea/
 .vscode/
@@ -25,6 +28,11 @@ frontend/dist-ssr/
 
 # Logs
 *.log
+logs/
+
+# 部署构建产物
+out/
+backend/static/
 
 # OS
 .DS_Store
