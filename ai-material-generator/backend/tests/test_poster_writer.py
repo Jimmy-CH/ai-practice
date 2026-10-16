@@ -82,3 +82,46 @@ async def test_generate_poster_image_url_raises_without_url(monkeypatch):
         assert False, "应抛 RuntimeError"
     except RuntimeError:
         pass
+
+
+async def _fake_xingyu_capture(captured, system_prompt, user_prompt):
+    captured["system"] = system_prompt
+    captured["user"] = user_prompt
+    return "ok"
+
+
+@pytest.mark.asyncio
+async def test_chat_passes_system_role_to_xingyu(monkeypatch):
+    from app.services import material_writer
+
+    captured = {}
+    monkeypatch.setattr(material_writer.settings, "llm_provider", "xingyu")
+    monkeypatch.setattr(
+        material_writer,
+        "generate_by_xingyu",
+        lambda s, u: _fake_xingyu_capture(captured, s, u),
+    )
+    result = await material_writer._chat(
+        [
+            {"role": "system", "content": "你是视觉设计师。"},
+            {"role": "user", "content": "描述一只猫"},
+        ]
+    )
+    assert result == "ok"
+    assert captured["system"] == "你是视觉设计师。"
+    assert captured["user"] == "描述一只猫"
+
+
+@pytest.mark.asyncio
+async def test_chat_keeps_default_system_without_system_msg(monkeypatch):
+    from app.services import material_writer
+
+    captured = {}
+    monkeypatch.setattr(material_writer.settings, "llm_provider", "xingyu")
+    monkeypatch.setattr(
+        material_writer,
+        "generate_by_xingyu",
+        lambda s, u: _fake_xingyu_capture(captured, s, u),
+    )
+    await material_writer._chat([{"role": "user", "content": "写一篇宣发稿"}])
+    assert captured["system"] == "你是一名资深运营文案。"
