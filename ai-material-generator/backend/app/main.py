@@ -11,11 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from starlette.routing import Match
 
-from app.api.generator import router as generator_router
-from app.api.auth import router as auth_router
-from app.api.materials import router as materials_router
-from app.api.analyses import router as analyses_router
-from app.api.generated_materials import router as generated_materials_router
+from app.api.router import register_routers
 from app.config import settings
 from app.database import engine, Base, AsyncSessionLocal
 from app.services.auth_service import seed_users
@@ -109,16 +105,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.include_router(auth_router, prefix="/api")
-app.include_router(materials_router, prefix="/api")
-app.include_router(analyses_router, prefix="/api/analyses")
-app.include_router(generated_materials_router, prefix="/api/generated-materials")
-app.include_router(generator_router, prefix="/api")
-
-
-@app.get("/api/health")
-def health() -> dict:
-    return {"status": "ok"}
+# 全部接口路由集中在 app/api/router.py 注册，便于一文件总览所有接口
+register_routers(app)
 
 
 def register_static(app: FastAPI, static_dir: Path) -> None:
