@@ -79,6 +79,11 @@ def _extract_title(content: str, default: str) -> str:
     return default
 
 
+def generator_label() -> str:
+    """meta.generator 展示名：随 provider 路由，生成与缓存命中两条路径共用。"""
+    return "Xingyu" if settings.llm_provider == "xingyu" else "DeepSeek"
+
+
 async def generate_material(title: str, analysis: dict, audience: str, material_type: str) -> dict:
     if material_type not in MATERIAL_TYPES:
         raise ValueError(f"不支持的物料类型: {material_type}")
@@ -106,7 +111,7 @@ async def generate_material(title: str, analysis: dict, audience: str, material_
         "meta": {
             "audience": audience,
             "material_type": MATERIAL_TYPES[material_type],
-            "generator": "Xingyu" if settings.llm_provider == "xingyu" else "DeepSeek",
+            "generator": generator_label(),
         },
     }
 

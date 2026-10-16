@@ -69,6 +69,8 @@ async def test_generate_uses_cache(client, editor_token):
     assert r.status_code == 200
     assert r.json()["content"] == "C"
     assert r.json()["cached"] is True
+    # 回归：缓存命中路径的 generator 标签必须反映当前 provider，不得硬编码 DeepSeek
+    assert r.json()["meta"]["generator"] == "Xingyu"
     mock_generate.assert_called_once()
 
 
@@ -107,6 +109,8 @@ async def test_generate_all_hits_cache_right_after_parse(client, editor_token):
     materials = r2.json()["materials"]
     assert len(materials) == len(MATERIAL_TYPES)
     assert all(m["cached"] is True for m in materials)
+    # 回归：generate-all 缓存命中路径的 generator 标签必须反映当前 provider
+    assert all(m["meta"]["generator"] == "Xingyu" for m in materials)
     # 回归：命中缓存的物料项必须带缓存记录 id，否则前端编辑保存无从发起 PUT
     assert all(isinstance(m.get("id"), int) for m in materials)
     # parse 预生成恰好 6 次调用；generate-all 全命中不得追加任何调用

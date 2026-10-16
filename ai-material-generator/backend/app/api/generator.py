@@ -19,6 +19,7 @@ from app.services.material_writer import (
     generate_material,
     generate_all_materials,
     generate_material_deduped,
+    generator_label,
     MATERIAL_TYPES,
 )
 from app.models.generated_material import compute_analysis_hash
@@ -148,7 +149,7 @@ async def generate_endpoint(
             return {**cached.to_dict(), "title": title, "meta": {
                 "audience": audience,
                 "material_type": MATERIAL_TYPES.get(material_type, material_type),
-                "generator": "DeepSeek",
+                "generator": generator_label(),
             }, "cached": True}
 
         # 与后台预热共用同一去重键：预热在飞时直接复用该任务，不会重复调用模型
@@ -203,7 +204,7 @@ async def generate_all_endpoint(
                     "meta": {
                         "audience": audience,
                         "material_type": MATERIAL_TYPES[material_type],
-                        "generator": "DeepSeek",
+                        "generator": generator_label(),
                     },
                     "cached": True,
                 }
