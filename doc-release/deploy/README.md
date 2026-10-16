@@ -58,12 +58,19 @@ venv 缺失则创建（Python 3.11）→ 在线安装依赖 → .env 缺失则�
 ## 五、升级与回滚
 
 - 升级：新包解压到 `packages/` 后重跑 `install.sh`（db/archive/sample_repo/.env 全保留）
-- 回滚（用旧包覆盖部署目录后重启，`<部署根>` 为 /opt/docrelease 或 ~/docrelease）：
+- 回滚（用旧包覆盖部署目录后重启；系统级需 sudo——部署目录属主是 docrelease）：
 
 ```bash
+# 系统级（root 身份操作 /opt/docrelease）
+sudo rsync -a --exclude "venv/" --exclude ".env" --exclude "docrelease.db" \
+  --exclude "archive/" --exclude "sample_repo/" --exclude "static/" \
+  /opt/docrelease/packages/<旧包>/backend/ /opt/docrelease/backend/
+sudo rsync -a /opt/docrelease/packages/<旧包>/static/ /opt/docrelease/backend/static/
+sudo systemctl restart docrelease
+# 用户级（无需 root，部署根 ~/docrelease）
 rsync -a --exclude "venv/" --exclude ".env" --exclude "docrelease.db" \
   --exclude "archive/" --exclude "sample_repo/" --exclude "static/" \
-  <部署根>/packages/<旧包>/backend/ <部署根>/backend/
-rsync -a <部署根>/packages/<旧包>/static/ <部署根>/backend/static/
-sudo systemctl restart docrelease      # 用户级：systemctl --user restart docrelease
+  ~/docrelease/packages/<旧包>/backend/ ~/docrelease/backend/
+rsync -a ~/docrelease/packages/<旧包>/static/ ~/docrelease/backend/static/
+systemctl --user restart docrelease
 ```
