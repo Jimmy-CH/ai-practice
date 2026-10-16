@@ -425,9 +425,16 @@ watch(isPosterScript, (visible) => {
 
 async function openPosterDialog() {
   posterDialogVisible.value = true
+  // 默认直接填入海报脚本原文，可编辑后生成；需要 AI 改写时手动点「AI 提炼」
+  posterPrompt.value = currentMaterial.value?.content || ''
+  posterPromptCached.value = false
+}
+
+async function doRefinePoster() {
+  if (!currentMaterial.value) return
   posterRefining.value = true
   try {
-    const res = await refinePosterPrompt(currentMaterial.value!.content)
+    const res = await refinePosterPrompt(currentMaterial.value.content)
     posterPrompt.value = res.data.prompt
     posterPromptCached.value = res.data.cached
   } catch (e: any) {
@@ -789,7 +796,7 @@ async function doDeletePoster(img: PosterImage) {
               生成海报图
             </el-button>
           </div>
-          <p class="poster-hint">根据海报脚本提炼画面描述并生成配图（约 15 秒/张），图片仅本人可见</p>
+          <p class="poster-hint">画面描述默认为海报脚本内容，可编辑或用 AI 提炼；生成配图（约 15 秒/张），图片仅本人可见</p>
           <div v-loading="posterImagesLoading" class="poster-grid">
             <el-empty
               v-if="!posterImages.length && !posterImagesLoading"
@@ -815,13 +822,17 @@ async function doDeletePoster(img: PosterImage) {
       <el-dialog v-model="posterDialogVisible" title="海报配图" width="560px">
         <div v-loading="posterRefining">
           <p class="poster-dialog-tip">
-            画面描述由 AI 从海报脚本提炼<template v-if="posterPromptCached">（命中缓存）</template>，可编辑后生成：
+            画面描述默认为海报脚本内容，可直接编辑；也可
+            <el-button text type="primary" size="small" :loading="posterRefining" @click="doRefinePoster">
+              AI 提炼
+            </el-button>
+            让 AI 改写成视觉描述<template v-if="posterPromptCached">（命中缓存）</template>：
           </p>
           <el-input
             v-model="posterPrompt"
             type="textarea"
             :rows="5"
-            placeholder="正在提炼画面描述…"
+            placeholder="请输入画面描述"
           />
           <p class="poster-dialog-warn">生成约需 15 秒；图片为 PNG，仅生成者本人可见，可多次生成挑选</p>
         </div>
