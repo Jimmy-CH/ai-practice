@@ -802,13 +802,13 @@ async function doDeletePoster(img: PosterImage) {
         </div>
       </section>
 
-      <el-dialog v-model="posterDialogVisible" title="海报配图" width="560px">
+      <el-dialog v-model="posterDialogVisible" title="海报配图" width="720px">
         <div>
           <p class="poster-dialog-tip">画面描述默认为海报脚本内容，可直接编辑后生成：</p>
           <el-input
             v-model="posterPrompt"
             type="textarea"
-            :rows="5"
+            :rows="12"
             placeholder="请输入画面描述"
           />
           <p class="poster-dialog-warn">生成约需 15 秒；图片为 PNG，仅生成者本人可见，可多次生成挑选</p>
