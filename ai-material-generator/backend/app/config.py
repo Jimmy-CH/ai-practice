@@ -8,6 +8,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
     )
     llm_provider: str = "xingyu"  # "xingyu" | "deepseek"
+    log_level: str = "INFO"  # DEBUG/INFO/WARNING/ERROR
     deepseek_api_key: str | None = None
     deepseek_base_url: str = "https://api.deepseek.com"
     deepseek_model: str = "deepseek-chat"

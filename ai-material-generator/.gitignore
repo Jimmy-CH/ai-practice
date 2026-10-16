@@ -28,6 +28,7 @@ frontend/dist-ssr/
 
 # Logs
 *.log
+logs/
 
 # 部署构建产物
 out/

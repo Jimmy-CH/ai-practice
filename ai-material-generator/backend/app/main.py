@@ -14,6 +14,7 @@ from starlette.routing import Match
 from app.api.router import register_routers
 from app.config import settings
 from app.database import engine, Base, AsyncSessionLocal
+from app.logging_config import setup_logging
 from app.services.auth_service import seed_users
 
 
@@ -48,7 +49,8 @@ def _sanitize_body(raw: bytes, content_type: str) -> str:
 
 
 logger = logging.getLogger("app.main")
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+# 控制台 + 按月轮转文件双输出，级别由 LOG_LEVEL 控制
+setup_logging(settings.log_level)
 
 
 async def _migrate_schema(conn) -> None:
