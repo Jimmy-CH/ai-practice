@@ -4,6 +4,7 @@ from datetime import datetime
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.clock import iso_utc, utcnow
 from app.database import Base
 
 STEP_NAMES = [
@@ -36,7 +37,7 @@ class Run(Base):
     stats: Mapped[dict] = mapped_column(JSON, default=dict)
     result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     def to_dict(self) -> dict:
@@ -55,6 +56,6 @@ class Run(Base):
             "stats": self.stats or {},
             "result": self.result,
             "error": self.error,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "finished_at": self.finished_at.isoformat() if self.finished_at else None,
+            "created_at": iso_utc(self.created_at),
+            "finished_at": iso_utc(self.finished_at),
         }

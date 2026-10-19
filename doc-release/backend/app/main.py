@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -16,6 +17,9 @@ from app.api import runs as runs_api
 from app.config import settings
 from app.database import AsyncSessionLocal, Base, engine
 from app.models import Repo
+from app.services import pipeline_service
+
+logger = logging.getLogger(__name__)
 
 
 async def _ensure_sample_repo() -> None:
@@ -34,8 +38,13 @@ async def _ensure_sample_repo() -> None:
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    # 上次进程遗留的 pending/running 运行已无任务在跑，启动时先收敛为失败
+    interrupted = await pipeline_service.recover_stale_runs()
+    if interrupted:
+        logger.warning("已将 %s 条上次中断的运行标记为失败", interrupted)
     await _ensure_sample_repo()
     yield
+    await pipeline_service.shutdown_runs()
 
 
 app = FastAPI(title="释文 DocRelease", lifespan=lifespan)

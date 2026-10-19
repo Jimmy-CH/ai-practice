@@ -6,7 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
+from app.clock import utcnow
 from app.database import get_db
 from app.models import Artifact, Repo, Run
 from app.models.run import blank_steps
@@ -47,8 +49,9 @@ async def create_run(payload: RunCreate, db: AsyncSession = Depends(get_db)) -> 
     if payload.tone not in ("business", "tech"):
         raise HTTPException(status_code=422, detail="tone 仅支持 business 或 tech")
     try:
-        git_service.resolve_ref(repo.path, payload.base_ref)
-        git_service.resolve_ref(repo.path, payload.head_ref)
+        # git 子进程会阻塞事件循环，最长 60s；统一放线程池
+        await asyncio.to_thread(git_service.resolve_ref, repo.path, payload.base_ref)
+        await asyncio.to_thread(git_service.resolve_ref, repo.path, payload.head_ref)
     except GitError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -65,7 +68,9 @@ async def create_run(payload: RunCreate, db: AsyncSession = Depends(get_db)) -> 
             repo_id=payload.repo_id,
             base_ref=payload.base_ref,
             head_ref=payload.head_ref,
-            version_label=(payload.version_label or "").strip() or payload.head_ref,
+            # 版本号直接做归档目录名：未填写时用 head_ref，需先收敛成单层目录
+            version_label=archive_service.normalize_version(
+                payload.version_label or payload.head_ref),
             tone=payload.tone,
             mask=payload.mask,
         )
@@ -74,7 +79,8 @@ async def create_run(payload: RunCreate, db: AsyncSession = Depends(get_db)) -> 
         await db.commit()
     await db.refresh(run)
 
-    asyncio.create_task(pipeline_service.execute_run(run.id))
+    # schedule_run 持有任务引用，供取消与进程退出时判断任务是否仍在跑
+    pipeline_service.schedule_run(run.id)
     return await _run_detail(db, run)
 
 
@@ -123,12 +129,20 @@ async def run_events(run_id: str, db: AsyncSession = Depends(get_db)) -> Streami
     if run is None:
         raise HTTPException(status_code=404, detail="运行不存在")
 
+    # 先订阅再读快照：两者之间发布的事件会进队列，由 seen 去重，没有丢失窗口
+    queue = pipeline_service.bus.subscribe(run_id)
+    try:
+        await db.refresh(run)
+        snapshot = _build_snapshot(run, pipeline_service.get_live_state(run_id))
+    except Exception:
+        pipeline_service.bus.unsubscribe(run_id, queue)
+        raise
+    finally:
+        # SSE 可能持续数分钟，快照构建完就归还连接，避免长期占用连接池
+        await db.close()
+
     async def gen():
-        queue = pipeline_service.bus.subscribe(run_id)
         try:
-            # 订阅后再刷新一次 DB，消除「订阅前已终态但读到旧数据」的快照丢失窗口
-            await db.refresh(run)
-            snapshot = _build_snapshot(run, pipeline_service.get_live_state(run_id))
             seen = {(l.get("ts"), l.get("tag"), l.get("message")) for l in snapshot.get("logs", [])}
             yield _sse("snapshot", {"run": snapshot})
             if snapshot["status"] not in ("pending", "running"):
@@ -162,7 +176,20 @@ async def cancel_run(run_id: str, db: AsyncSession = Depends(get_db)) -> dict:
         raise HTTPException(status_code=404, detail="运行不存在")
     if run.status not in _ACTIVE_STATUSES:
         raise HTTPException(status_code=409, detail=f"运行已是 {run.status} 状态，无法取消")
-    pipeline_service.cancel_run(run_id)
+    if pipeline_service.is_running_in_process(run_id):
+        pipeline_service.cancel_run(run_id)
+        return {"ok": True}
+    # 本进程没有对应任务（如服务重启）：直接收敛状态，否则这条记录会永久卡在运行中
+    run.status = "cancelled"
+    run.error = "运行已取消"
+    run.finished_at = utcnow()
+    steps = run.steps or []
+    for step in steps:
+        if step.get("status") == "active":
+            step["status"] = "pending"
+    run.steps = steps
+    flag_modified(run, "steps")
+    await db.commit()
     return {"ok": True}
 
 

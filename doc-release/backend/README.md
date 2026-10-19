@@ -26,6 +26,9 @@ Copy-Item .env.example .env    # 按需修改
 
 首次启动会自动：建表 → 幂等生成示例仓库 `sample_repo/order-center`（含 v2.13.3/v2.13.4/v2.14.0/v3.0.0 四个标签与三大场景）→ 注册为 `is_sample=True` 的仓库。
 
+每次启动还会做一次自愈：上次进程遗留的 `pending/running` 运行会被标记为失败（`error=服务重启，运行被中断`），
+避免这些脏记录永久占用 `base..head` 查重、取消与删除接口。进程退出时也会取消并落库仍在跑的任务。
+
 ## 测试
 
 ```powershell
@@ -63,7 +66,7 @@ Copy-Item .env.example .env    # 按需修改
 | GET | /runs | 运行列表（分页 total/items） |
 | GET | /runs/{id} | 运行详情（含 steps/logs/stats/result/artifacts） |
 | GET | /runs/{id}/events | SSE 事件流（snapshot/step/log/progress/done/error + 15s 心跳） |
-| POST | /runs/{id}/cancel | 取消运行 |
+| POST | /runs/{id}/cancel | 取消运行（进程内无对应任务时直接落库为 cancelled） |
 | DELETE | /runs/{id} | 删除运行（含归档，trace.runId 匹配才删） |
 | GET | /runs/{id}/artifacts/{kind} | 渲染产物（kind: checklist/document/trace；query: tone, mask） |
 | GET | /runs/{id}/artifacts/{kind}/download | 下载产物 |
@@ -71,6 +74,19 @@ Copy-Item .env.example .env    # 按需修改
 ## 归档
 
 产物写入 `archive/docs/release/<version>/`（同版本覆盖；删除时校验 trace.runId 防误删）。
+版本号会先经 `normalize_version` 收敛为单层目录名：`/ \ : * ? " < > |` 与控制字符替换为 `-`，
+截断至 120 字符，空值或全非法时落为 `unversioned`，防止非法路径与目录穿越。
+
+## 实现约定
+
+- **时间**：数据库与 API 输出统一为 naive UTC（ISO8601 带 `Z`），前端按浏览器时区展示；
+  日志行与产物 `meta.generatedAt` 仍用本机本地时间，便于对照排查。
+- **ref 校验**：仅接受 `A-Za-z0-9._/@^~:+-` 组成的 ref，且禁止 `-` 开头与 `..`，避免被 git 当作选项或范围注入。
+- **事件循环**：所有 git 子进程调用经 `asyncio.to_thread` 移出事件循环；收集变更只跑一次 `git diff`
+  再按文件切分，AST 取源码用 `git cat-file --batch` 批量读取，避免每个文件各起一次子进程。
+- **SSE**：先订阅事件总线再构建快照，首帧 `snapshot` 之后是增量事件，15 秒心跳 `: ping`；
+  客户端断开即释放数据库会话，不占用连接池。前端按指数退避重连（1s 起、最多 5 次），
+  收到首个事件才重置退避，避免服务端「握手即断」时无限快速重连。
 
 ## 部署
 

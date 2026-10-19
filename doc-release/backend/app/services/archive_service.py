@@ -1,9 +1,20 @@
 """产物归档：写入 <archive_root>/docs/release/<version>/ 与 runId 绑定的删除保护。"""
 
 import json
+import re
 from pathlib import Path
 
 from app.services.errors import ServiceError
+
+# 归档目录名只能落在一层：路径分隔符、Windows 保留字符与控制字符一律折叠为 -
+_VERSION_UNSAFE = re.compile(r'[\\/:*?"<>|\x00-\x1f]+')
+_VERSION_MAX_LEN = 120
+
+
+def normalize_version(version: str) -> str:
+    """把版本号收敛成单层目录名；空串或全非法时给出占位名。"""
+    cleaned = _VERSION_UNSAFE.sub("-", (version or "").strip()).strip(" .-")
+    return cleaned[:_VERSION_MAX_LEN] or "unversioned"
 
 
 def archive_dir_for(archive_root: Path, version: str) -> Path:

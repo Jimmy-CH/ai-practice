@@ -1,6 +1,6 @@
 """五步流水线编排、运行状态机、进程内事件总线与取消。
 
-执行模型：API 层 create_task 调用 execute_run；execute_run 自带数据库会话
+执行模型：API 层 schedule_run 创建后台任务；execute_run 自带数据库会话
 （与请求生命周期解耦），运行期状态存在内存 _live_states 供 SSE snapshot 使用，
 每个步骤结束时落库，结束时整体落库（logs/result/status）。
 """
@@ -8,12 +8,14 @@
 import asyncio
 import logging
 from collections.abc import Callable
+from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
 
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.orm.attributes import flag_modified
 
+from app.clock import local_now_iso, utcnow
 from app.config import settings
 from app.database import AsyncSessionLocal
 from app.models import Artifact, Repo, Run
@@ -29,6 +31,8 @@ _session_factory: Callable = AsyncSessionLocal
 _archive_root: Path = Path(settings.archive_dir)
 _live_states: dict[str, dict] = {}
 _cancelled: set[str] = set()
+# 持有后台任务引用：create_task 的返回值不保存时有被回收的风险
+_running_tasks: dict[str, asyncio.Task] = {}
 
 
 def set_session_factory(factory: Callable) -> None:
@@ -83,8 +87,54 @@ def cancel_run(run_id: str) -> bool:
     return True
 
 
+def schedule_run(run_id: str) -> None:
+    """创建后台任务并持有引用，同时供「任务是否还在本进程内」判断使用。"""
+    task = asyncio.create_task(execute_run(run_id), name=f"docrelease-run-{run_id}")
+    _running_tasks[run_id] = task
+    task.add_done_callback(lambda _task: _running_tasks.pop(run_id, None))
+
+
+def is_running_in_process(run_id: str) -> bool:
+    task = _running_tasks.get(run_id)
+    return task is not None and not task.done()
+
+
+async def shutdown_runs() -> None:
+    """进程退出前取消在跑任务；未完成的运行由下次启动的恢复逻辑收敛。"""
+    tasks = [t for t in _running_tasks.values() if not t.done()]
+    for task in tasks:
+        task.cancel()
+    if tasks:
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+
+async def recover_stale_runs() -> int:
+    """把上次进程遗留的进行中运行标记为失败。
+
+    这些记录既不能删除、也无法真正取消，还会让相同范围的再次运行永远 409，
+    因此每次启动时先收敛一次。
+    """
+    async with _session_factory() as db:
+        rows = (await db.execute(
+            select(Run).where(Run.status.in_(("pending", "running"))))).scalars().all()
+        for run in rows:
+            run.status = "failed"
+            run.error = "服务重启，运行被中断"
+            run.finished_at = utcnow()
+            steps = run.steps or []
+            for step in steps:
+                if step.get("status") == "active":
+                    step["status"] = "failed"
+                    step["finished_at"] = local_now_iso()
+            run.steps = steps
+            flag_modified(run, "steps")
+        if rows:
+            await db.commit()
+        return len(rows)
+
+
 def _now() -> str:
-    return datetime.now().isoformat(timespec="seconds")
+    return local_now_iso()
 
 
 def _log(run_id: str, state: dict, channel: str, tag: str, message: str) -> None:
@@ -145,7 +195,7 @@ async def _finish_cancelled(db, run: Run, state: dict, run_id: str) -> None:
     run.logs = state["logs"]
     flag_modified(run, "logs")
     run.error = "运行已取消"
-    run.finished_at = datetime.utcnow()
+    run.finished_at = utcnow()
     await db.commit()
     bus.publish(run_id, {"event": "done", "data": {"status": "cancelled", "result": None}})
 
@@ -165,7 +215,7 @@ async def _finish_failed(db, run: Run, state: dict, run_id: str, exc: Exception)
     if state.get("stats"):
         run.stats = state["stats"]
     run.error = message
-    run.finished_at = datetime.utcnow()
+    run.finished_at = utcnow()
     await db.commit()
     bus.publish(run_id, {"event": "error", "data": {"message": message}})
     bus.publish(run_id, {"event": "done", "data": {"status": "failed", "result": None}})
@@ -181,7 +231,7 @@ async def execute_run(run_id: str) -> None:
         if repo is None:
             run.status = "failed"
             run.error = "仓库记录不存在"
-            run.finished_at = datetime.utcnow()
+            run.finished_at = utcnow()
             await db.commit()
             bus.publish(run_id, {"event": "error", "data": {"message": "仓库记录不存在"}})
             bus.publish(run_id, {"event": "done", "data": {"status": "failed", "result": None}})
@@ -200,10 +250,11 @@ async def execute_run(run_id: str) -> None:
                 raise RunCancelled("运行已取消")
 
             async def step1():
-                git_service.resolve_ref(repo.path, run.base_ref)
-                head_sha = git_service.resolve_ref(repo.path, run.head_ref)
-                commits = git_service.list_commits(repo.path, run.base_ref, run.head_ref)
-                refs = git_service.list_refs(repo.path)
+                await asyncio.to_thread(git_service.resolve_ref, repo.path, run.base_ref)
+                head_sha = await asyncio.to_thread(git_service.resolve_ref, repo.path, run.head_ref)
+                commits = await asyncio.to_thread(git_service.list_commits, repo.path,
+                                                  run.base_ref, run.head_ref)
+                refs = await asyncio.to_thread(git_service.list_refs, repo.path)
                 _log(run_id, state, "step", "范围",
                      f"解析 {run.base_ref}..{run.head_ref}，头部 {head_sha[:7]}")
                 _log(run_id, state, "step", "提交", f"范围内 {len(commits)} 个提交")
@@ -213,8 +264,10 @@ async def execute_run(run_id: str) -> None:
             range_info = await _run_step(run_id, run, state, db, 0, step1)
 
             async def step2():
-                cs = git_service.collect_diff(repo.path, run.base_ref, run.head_ref,
-                                              max_lines=_PIPELINE_MAX_LINES)
+                # 同步 git 调用放到线程池：阻塞事件循环会让 SSE 心跳与其他请求一起卡住
+                cs = await asyncio.to_thread(
+                    git_service.collect_diff, repo.path, run.base_ref, run.head_ref,
+                    _PIPELINE_MAX_LINES)
                 state["stats"] = cs["stats"]
                 _log(run_id, state, "step", "规模",
                      f"{cs['stats']['files']} 个文件，+{cs['stats']['added']}/-{cs['stats']['removed']} 行，"
@@ -229,17 +282,26 @@ async def execute_run(run_id: str) -> None:
                 total = {"added": 0, "removed": 0, "changed": 0}
                 signals: list[dict] = []
                 degraded = 0
+                text_files = [f for f in changeset["files"] if not f.get("binary")]
                 for f in changeset["files"]:
                     if f.get("binary"):
                         f["ast"] = None
                         f["contract_signals"] = []
-                        continue
-                    # 重命名文件需从旧路径读基线内容
-                    base_src = (git_service.show_file(repo.path, run.base_ref,
-                                                      f.get("old_path") or f["path"])
+                # 一次 cat-file 批量读取取代逐文件 git show（最坏情况上百次子进程）；
+                # 重命名文件的基线内容需从旧路径取
+                base_paths = [f.get("old_path") or f["path"] for f in text_files
+                              if f["status"] != "a"]
+                head_paths = [f["path"] for f in text_files if f["status"] != "d"]
+                base_srcs, head_srcs = await asyncio.gather(
+                    asyncio.to_thread(git_service.read_files, repo.path, run.base_ref, base_paths),
+                    asyncio.to_thread(git_service.read_files, repo.path, run.head_ref, head_paths),
+                )
+                for f in text_files:
+                    if is_cancelled(run_id):
+                        raise RunCancelled("运行已取消")
+                    base_src = (base_srcs.get(f.get("old_path") or f["path"], "")
                                 if f["status"] != "a" else "")
-                    head_src = (git_service.show_file(repo.path, run.head_ref, f["path"])
-                                if f["status"] != "d" else "")
+                    head_src = head_srcs.get(f["path"], "") if f["status"] != "d" else ""
                     parsed = parser_service.parse_file_pair(f["path"], base_src, head_src,
                                                             f.get("lines", []))
                     f["ast"] = parsed
@@ -357,13 +419,19 @@ async def execute_run(run_id: str) -> None:
             run.stats = changeset["stats"]
             run.result = result
             flag_modified(run, "result")
-            run.finished_at = datetime.utcnow()
+            run.finished_at = utcnow()
             await db.commit()
             bus.publish(run_id, {"event": "progress", "data": {"percent": 100}})
             bus.publish(run_id, {"event": "done",
                                  "data": {"status": final_status, "result": result}})
         except RunCancelled:
             await _finish_cancelled(db, run, state, run_id)
+        except asyncio.CancelledError:
+            # 进程退出时取消任务：尽力落库，避免下次启动前一直显示运行中
+            with suppress(Exception):
+                await asyncio.shield(
+                    _finish_failed(db, run, state, run_id, ServiceError("服务停止，运行被中断")))
+            raise
         except Exception as exc:  # noqa: BLE001 —— 运行失败需完整落库并广播
             logger.exception("运行 %s 失败", run_id)
             await _finish_failed(db, run, state, run_id, exc)

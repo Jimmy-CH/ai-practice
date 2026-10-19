@@ -51,6 +51,14 @@ export const useRunStore = defineStore('run', {
       this.result = detail.result
       this.stats = (detail.stats || {}) as Record<string, number>
       this.seen = new Set(this.logs.map(logKey))
+      // 断线重连时没有历史 progress 事件，用步骤完成度还原进度条，避免归零后长时间空转
+      if (detail.status === 'succeeded' || detail.status === 'degraded') {
+        this.progress = 100
+      } else {
+        const total = this.steps.length || 1
+        const finished = this.steps.filter((s) => s.status === 'done').length
+        this.progress = Math.round((finished / total) * 100)
+      }
     },
     applyEvent(ev: SseEvent) {
       if (ev.event === 'snapshot') {
@@ -75,10 +83,13 @@ export const useRunStore = defineStore('run', {
       } else if (ev.event === 'error') {
         this.error = (ev.data as { message?: string }).message || '运行失败'
       } else if (ev.event === 'done') {
-        this.status = (ev.data as { status: string }).status
-        const result = (ev.data as { result?: RunResult | null }).result
-        if (result) this.result = result
-        this.progress = 100
+        const data = ev.data as { status: string; result?: RunResult | null }
+        this.status = data.status
+        if (data.result) this.result = data.result
+        // 只有成功收尾才代表全流程走完；失败/取消保留当时的进度，避免进度条满格误导
+        if (data.status === 'succeeded' || data.status === 'degraded') {
+          this.progress = 100
+        }
         this.closeStream()
         // done 事件不含 artifacts，拉取完整详情补齐产物列表，终态后产物面板立即可渲染
         void this.refreshDetail()
@@ -87,10 +98,15 @@ export const useRunStore = defineStore('run', {
     async refreshDetail() {
       const id = this.current?.id
       if (!id) return
-      const detail = await api.getRun(id)
-      if (this.current?.id !== id) return   // 已切换运行，丢弃过期结果
-      this.current = detail
-      if (detail.result) this.result = detail.result
+      try {
+        const detail = await api.getRun(id)
+        if (this.current?.id !== id) return   // 已切换运行，丢弃过期结果
+        this.current = detail
+        if (detail.result) this.result = detail.result
+      } catch (err) {
+        // 后台补齐详情失败不应产生未处理拒绝；提示后由用户重进详情页重试
+        if (this.current?.id === id) this.error = this.error || api.extractError(err)
+      }
     },
     connect(runId: string) {
       this.handle = subscribeRun(
