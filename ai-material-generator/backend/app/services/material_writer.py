@@ -41,6 +41,27 @@ GENERATE_PROMPT = """你是一名资深运营文案。请根据以下版本迭�
 
 请直接输出正文。"""
 
+# 培训课件大纲直接服务于 PPT 分页，要求固定结构；其余物料仍用上面的通用模板
+TRAINING_OUTLINE_PROMPT = """你是一名资深培训讲师。请根据以下版本迭代要点，为「{audience}」受众编写一份可直接制作 PPT 的培训课件大纲。
+
+文档标题：{title}
+新增功能：
+{新增功能}
+变更与优化：
+{变更与优化}
+注意事项：
+{注意事项}
+风险提示：
+{风险提示}
+
+输出要求：
+- 第一行用 `# ` 写课件标题
+- 每一页幻灯片用 `## ` 作为标题，共 5-8 页
+- 每页下用 `- ` 列出 3-6 条要点，每条不超过 30 字；子要点用两个空格缩进的 `- `
+- 必须包含一页「注意事项与风险提示」，汇总注意事项和风险
+- 语气专业、清晰，突出对受众的实际价值
+- 只输出 Markdown 正文，不要代码块、表格、图片或客套话"""
+
 
 async def _chat_deepseek(messages: list[dict]) -> str:
     if not settings.deepseek_api_key:
@@ -91,7 +112,8 @@ def generator_label() -> str:
 async def generate_material(title: str, analysis: dict, audience: str, material_type: str) -> dict:
     if material_type not in MATERIAL_TYPES:
         raise ValueError(f"不支持的物料类型: {material_type}")
-    prompt = GENERATE_PROMPT.format(
+    template = TRAINING_OUTLINE_PROMPT if material_type == "training_outline" else GENERATE_PROMPT
+    prompt = template.format(
         title=title,
         audience=audience,
         type_name=MATERIAL_TYPES[material_type],

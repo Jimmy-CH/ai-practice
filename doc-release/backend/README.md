@@ -74,6 +74,6 @@ Copy-Item .env.example .env    # 按需修改
 
 ## 部署
 
-内网 Linux 离线部署（单端口同源托管 + systemd）：构建离线包、安装/升级/回滚
+内网 Linux 部署（源码包 + 在线 pip，单端口同源托管 + systemd，root/非 root 双模式）：构建部署包、安装/升级/回滚
 见 [`deploy/README.md`](../deploy/README.md)；设计方案见仓库根
 `docs/superpowers/specs/2026-10-15-doc-release-deploy-design.md`。

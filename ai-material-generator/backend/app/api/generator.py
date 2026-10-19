@@ -82,6 +82,19 @@ async def pregenerate_materials(
         logger.warning("pregenerate_materials '%s' audience='%s' failed: %s", title, audience, exc)
 
 
+async def extract_docx_text(file: UploadFile) -> str:
+    """把上传的 .docx 写入临时文件解析正文，解析结束立即清理临时文件。"""
+    tmp_path = None
+    try:
+        with NamedTemporaryFile(delete=False, suffix=Path(file.filename or "").suffix) as tmp:
+            tmp.write(await file.read())
+            tmp_path = tmp.name
+        return parse_docx_file(tmp_path)
+    finally:
+        if tmp_path:
+            Path(tmp_path).unlink(missing_ok=True)
+
+
 @router.post("/parse")
 async def parse_endpoint(
     background_tasks: BackgroundTasks,
@@ -94,20 +107,15 @@ async def parse_endpoint(
 ):
     if not content and not file:
         raise HTTPException(status_code=400, detail="请输入文档正文或上传 .docx 文件")
-    if file and not file.filename.endswith(".docx"):
+    if file and not (file.filename or "").endswith(".docx"):
         raise HTTPException(status_code=400, detail="仅支持 .docx 格式 Word 文档")
-    tmp_path = None
     try:
         existing = await analysis_svc.get_analysis_by_title(db, user.id, title)
         if existing is not None:
             return {"analysis_id": existing.id, "title": title, **existing.to_dict()}
 
         if file:
-            suffix = Path(file.filename).suffix
-            with NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-                tmp.write(await file.read())
-                tmp_path = tmp.name
-            content = parse_docx_file(tmp_path)
+            content = await extract_docx_text(file)
         if not content.strip():
             raise HTTPException(status_code=400, detail="文档正文为空")
         result = await analyze_document(title, content)
@@ -121,9 +129,23 @@ async def parse_endpoint(
         raise
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"文档解析失败: {exc}") from exc
-    finally:
-        if tmp_path:
-            Path(tmp_path).unlink(missing_ok=True)
+
+
+@router.post("/extract-text")
+async def extract_text_endpoint(
+    file: UploadFile = File(...),
+    _user: UserOut = Depends(get_current_user),
+) -> dict:
+    """读取 .docx 正文文本供前端回填输入框，不调用大模型。"""
+    if not (file.filename or "").endswith(".docx"):
+        raise HTTPException(status_code=400, detail="仅支持 .docx 格式 Word 文档")
+    try:
+        content = await extract_docx_text(file)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"文档解析失败: {exc}") from exc
+    if not content.strip():
+        raise HTTPException(status_code=400, detail="文档正文为空")
+    return {"filename": file.filename, "content": content}
 
 
 @router.post("/generate")

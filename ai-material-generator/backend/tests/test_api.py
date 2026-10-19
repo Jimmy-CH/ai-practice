@@ -1,5 +1,17 @@
-import pytest
+import io
 from unittest.mock import AsyncMock
+
+import pytest
+from docx import Document
+
+
+def _make_docx(*paragraphs: str) -> bytes:
+    doc = Document()
+    for text in paragraphs:
+        doc.add_paragraph(text)
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
 
 
 @pytest.mark.asyncio
@@ -24,6 +36,35 @@ async def test_parse_text(client, monkeypatch):
     )
     assert response.status_code == 200
     assert response.json()["新增功能"] == ["A"]
+
+
+@pytest.mark.asyncio
+async def test_extract_text_from_docx(client, editor_token):
+    response = await client.post(
+        "/api/extract-text",
+        files={
+            "file": (
+                "demo.docx",
+                _make_docx("第一段正文", "第二段正文"),
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        },
+        headers={"Authorization": f"Bearer {editor_token}"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["filename"] == "demo.docx"
+    assert body["content"] == "第一段正文\n第二段正文"
+
+
+@pytest.mark.asyncio
+async def test_extract_text_rejects_non_docx(client, editor_token):
+    response = await client.post(
+        "/api/extract-text",
+        files={"file": ("demo.txt", b"plain text", "text/plain")},
+        headers={"Authorization": f"Bearer {editor_token}"},
+    )
+    assert response.status_code == 400
 
 
 @pytest.mark.asyncio
