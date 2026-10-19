@@ -1,6 +1,7 @@
 """三类产物确定性渲染（纯函数）：功能点清单 CSV / 产品文档 MD / 溯源文件 JSON。
 
 tone（业务/技术）与 mask（脱敏）只在渲染期应用，不改变结构化结果。
+产品文档在 result 含 spec 时渲染九节产品说明书，否则回退旧八节发布说明。
 """
 
 import json
@@ -69,6 +70,15 @@ def render_checklist(result: dict, opts: dict) -> str:
 
 
 def render_document(result: dict, opts: dict) -> str:
+    """产品文档入口：有 spec 走九节说明书，历史运行（无 spec）走旧八节发布说明。"""
+    if result.get("spec"):
+        # 延迟导入：spec_renderer 反向依赖本模块的 mask 助手，避免模块级循环导入
+        from app.services.spec_renderer import render_product_spec
+        return render_product_spec(result, opts)
+    return render_release_document(result, opts)
+
+
+def render_release_document(result: dict, opts: dict) -> str:
     meta = result["meta"]
     stats = meta.get("stats", {})
     llm = result.get("llm", {})
@@ -212,6 +222,17 @@ def render_trace(result: dict, opts: dict, sizes: dict | None = None) -> str:
         "tone": opts.get("tone", "business"),
         "masked": mask,
     }
+    spec = result.get("spec") or {}
+    if spec:
+        # 只记元数据，不内嵌九节正文；历史运行（无 spec）不新增字段
+        data["spec"] = {
+            "prompt": spec.get("prompt", ""),
+            "modules": len(spec.get("modules") or []),
+            "degraded": len(spec.get("degradedModules") or []),
+            "files": (spec.get("snapshot") or {}).get("files", 0),
+            "inputChars": (spec.get("llm") or {}).get("inputChars", 0),
+            "outputChars": (spec.get("llm") or {}).get("outputChars", 0),
+        }
     return json.dumps(data, ensure_ascii=False, indent=2) + "\n"
 
 

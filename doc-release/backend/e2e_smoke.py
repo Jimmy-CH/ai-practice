@@ -15,6 +15,7 @@ import httpx
 import uvicorn
 
 import app.main as main_module
+from app.prompts import spec_v1
 from app.services import llm_service
 
 HOST = "127.0.0.1"
@@ -23,6 +24,23 @@ BASE = f"http://{HOST}:{PORT}"
 
 
 async def _fake_chat(system_prompt: str, user_prompt: str) -> str:
+    if spec_v1.PROMPT_MARKER in system_prompt:
+        if user_prompt.startswith("模块："):
+            return json.dumps({
+                "responsibility": "冒烟模块职责",
+                "functions": [{"name": "冒烟模块功能", "logic": "冒烟测试读取接口",
+                              "roles": ["研发"], "priority": "P0"}],
+                "flows": [{"title": "冒烟流程",
+                           "mermaid": "flowchart TD\n A[\"开始\"] --> B[\"结束\"]"}],
+                "entities": [], "enums": [], "rules": [], "errorCodes": [], "nfr": {},
+            }, ensure_ascii=False)
+        return json.dumps({
+            "overview": {"name": "示例项目", "positioning": "冒烟测试定位",
+                         "problems": [], "scope": []},
+            "roles": [{"role": "研发", "scenarios": ["查看产品说明"]}],
+            "architecture": {"stack": [], "modules": [],
+                             "diagram": "flowchart LR\n A[\"前端\"] --> B[\"后端\"]"},
+        }, ensure_ascii=False)
     return json.dumps({
         "features": [{
             "tag": "技术重构", "risk": "低", "breaking": False,
@@ -71,13 +89,20 @@ async def _run_checks() -> list[str]:
                 failures.append(f"[{sc['id']}] 终态 {detail.get('status')}（error={detail.get('error')}）")
                 continue
 
+            texts: dict[str, str] = {}
             for kind in ("checklist", "document", "trace"):
                 art = await client.get(f"/api/runs/{run_id}/artifacts/{kind}")
                 if art.status_code != 200 or not art.text.strip():
                     failures.append(f"[{sc['id']}] 产物 {kind} 不可读或为空")
-            trace = json.loads((await client.get(f"/api/runs/{run_id}/artifacts/trace")).text)
-            if trace["runId"] != run_id:
+                texts[kind] = art.text
+            document = texts.get("document", "")
+            if "## 4. 功能清单及核心逻辑" not in document or "```mermaid" not in document:
+                failures.append(f"[{sc['id']}] document 缺少九节标题或 mermaid 代码块")
+            trace = json.loads(texts.get("trace") or "{}")
+            if trace.get("runId") != run_id:
                 failures.append(f"[{sc['id']}] trace.runId 不匹配")
+            if (trace.get("spec") or {}).get("prompt") != spec_v1.PROMPT_VERSION:
+                failures.append(f"[{sc['id']}] trace 缺少 spec 元数据")
             print(f"  [{sc['id']}] {sc['version']}：功能点 {len(trace['features'])} 个，"
                   f"提交 {trace['changes'].get('commits')} 个，产物 3 份 OK")
     return failures

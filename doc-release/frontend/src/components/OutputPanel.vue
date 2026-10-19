@@ -38,7 +38,7 @@
               </tr>
             </tbody>
           </table>
-          <div v-else-if="activeKind === 'document'" class="md-view" v-html="mdHtml" />
+          <div v-else-if="activeKind === 'document'" ref="mdHost" class="md-view" v-html="mdHtml" />
           <pre v-else class="json-view">{{ jsonText }}</pre>
         </template>
       </div>
@@ -48,7 +48,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { artifactDownloadUrl, extractError, getArtifactText } from '@/api/client'
 import { formatJson, parseCsv, renderMarkdown } from '@/render/artifacts'
@@ -68,6 +68,7 @@ const activeKind = ref('checklist')
 const content = ref('')
 const loading = ref(false)
 const loadError = ref('')
+const mdHost = ref<HTMLElement | null>(null)
 
 const hasArtifacts = computed(() => !!runStore.current?.artifacts?.length)
 
@@ -118,6 +119,49 @@ watch(
   { immediate: true },
 )
 
+// mermaid 动态加载并逐块绘制：单图语法错误只降级该图为代码块，不影响整篇文档
+let mermaidSeq = 0
+
+function degradeMermaid(node: HTMLElement, source: string) {
+  const pre = document.createElement('pre')
+  pre.className = 'mermaid-fallback'
+  pre.textContent = source
+  node.replaceWith(pre)
+}
+
+async function paintMermaid() {
+  const seq = ++mermaidSeq
+  const host = mdHost.value
+  if (!host) return
+  const blocks = Array.from(host.querySelectorAll<HTMLElement>('.mermaid:not([data-processed])'))
+  if (!blocks.length) return
+  const sources = new Map(blocks.map((node) => [node, node.textContent || '']))
+  const { default: mermaid } = await import('mermaid')
+  if (seq !== mermaidSeq) return   // 已切换产物或重新加载，丢弃过期渲染
+  mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'neutral' })
+  const drawable: HTMLElement[] = []
+  for (const node of blocks) {
+    try {
+      await mermaid.parse(sources.get(node) || '')
+      drawable.push(node)
+    } catch {
+      degradeMermaid(node, sources.get(node) || '')
+    }
+  }
+  if (!drawable.length) return
+  try {
+    await mermaid.run({ nodes: drawable })
+  } catch {
+    // 逐块兜底在下方统一处理，避免一块异常中断全部图形
+  }
+  for (const node of drawable) {
+    if (!node.isConnected || node.querySelector('svg')) continue
+    degradeMermaid(node, sources.get(node) || '')
+  }
+}
+
+watch([mdHtml, loading], () => { void nextTick(paintMermaid) }, { flush: 'post' })
+
 async function copyContent() {
   if (!content.value) return
   try {
@@ -141,4 +185,8 @@ function download() {
 .tab-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 .output-error { background: #fdf3f3; border-color: #f5c6c8; color: #a03034; }
 .output-body :deep(.table-simple) { white-space: nowrap; }
+.md-view :deep(.mermaid) { margin: 8px 0; overflow-x: auto; text-align: center; }
+.md-view :deep(.mermaid svg) { max-width: 100%; height: auto; }
+.md-view :deep(.mermaid-fallback) { background: #fdf3f3; border: 1px solid #f5c6c8;
+  border-radius: 6px; color: #a03034; overflow-x: auto; padding: 8px 10px; }
 </style>

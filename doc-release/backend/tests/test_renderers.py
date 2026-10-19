@@ -91,3 +91,75 @@ def test_trace_mask_hides_signal_paths():
     assert data["contractSignals"][0]["message"].startswith("接口路径")
     open_data = json.loads(r.render_trace(RESULT, {"tone": "business", "mask": False}))
     assert open_data["contractSignals"][0]["path"] == "api/legacy/order.go"
+
+
+SPEC_RESULT = {
+    "features": [], "highlights": [], "lowConfidence": ["src/order：LLM 降级"],
+    "llm": {"provider": "xingyu", "model": "x", "prompt": "docrelease/v1",
+            "confidence": 0.8, "inputChars": 1, "outputChars": 1, "glossaryHits": 0},
+    "meta": {"runId": "r1", "repoName": "order-center", "version": "v1.1.0",
+             "branch": "main", "headShort": "abc1234", "range": "v1.0.0..v1.1.0",
+             "trigger": "手动触发", "generatedAt": "2026-10-19 10:00:00",
+             "stats": {"commits": 3, "files": 4, "modules": 2,
+                       "added": 51, "removed": 16, "days": 2},
+             "modules": ["src/order"], "pipeline": []},
+    "spec": {
+        "prompt": "spec/v1",
+        "snapshot": {"ref": "v1.1.0", "files": 20, "modules": 2, "skipped": 0},
+        "overview": {"name": "订单中心", "positioning": "交易履约",
+                     "problems": ["下单慢"], "scope": ["Web"]},
+        "roles": [{"role": "买家", "scenarios": ["下单"]}],
+        "architecture": {
+            "stack": [{"layer": "后端", "tech": "Go", "note": ""}],
+            "modules": [{"name": "backend/app/services", "responsibility": "订单服务"}],
+            "diagram": "flowchart LR\n A[\"前端\"] --> B[\"后端\"]",
+        },
+        "modules": [{
+            "name": "backend/app/services", "responsibility": "订单服务",
+            "changed": True, "degraded": False, "files": ["backend/app/services/order.py"],
+            "functions": [{"name": "创建订单",
+                           "logic": "POST /api/orders 写入 orders 表",
+                           "roles": ["买家"], "priority": "P0"}],
+            "flows": [{"title": "下单流程",
+                       "mermaid": "flowchart TD\n A[\"提交\"] --> B[\"落单\"]"}],
+            "entities": [{"name": "Order", "table": "orders",
+                          "fields": [{"name": "id", "type": "String(36)",
+                                      "constraints": "PK", "note": "主键"}],
+                          "relations": [{"target": "User", "label": "属于",
+                                         "cardinality": "||--o{"}]}],
+            "enums": [{"name": "OrderStatus", "values": ["paid", "closed"]}],
+            "rules": [{"topic": "幂等", "points": ["重复提交返回同一订单"]}],
+            "errorCodes": [{"scene": "参数非法", "code": "422", "ui": "提示"}],
+            "nfr": {"performance": ["下单 P99 < 300ms"], "security": ["鉴权"],
+                    "reliability": [], "deployment": [], "maintainability": [],
+                    "extensibility": [], "compatibility": []},
+        }],
+        "degradedModules": [], "lowConfidence": ["backend/app/services：画像失败"],
+        "llm": {"calls": 2, "okCalls": 2, "inputChars": 100, "outputChars": 200},
+    },
+}
+
+
+def test_product_spec_has_nine_sections_and_mermaid():
+    text = r.render_document(SPEC_RESULT, {"tone": "business", "mask": False})
+    for title in ["## 1. 项目概述", "## 2. 用户角色与使用场景", "## 3. 系统架构与技术栈",
+                  "## 4. 功能清单及核心逻辑", "## 5. 核心流程", "## 6. 领域实体关系图",
+                  "## 7. 领域实体清单", "## 8. 详细规则说明", "## 9. 非功能性需求"]:
+        assert title in text
+    assert "| 序号 | 功能简介 | 核心逻辑 | 涉及角色 | 优先级 |" in text
+    assert "```mermaid" in text and "erDiagram" in text
+    assert "创建订单" in text and "P0" in text
+    assert "OrderStatus" in text and "422" in text
+    assert "backend/app/services/order.py" in text   # 附录代码依据引用真实文件
+
+
+def test_product_spec_mask_hides_paths():
+    text = r.render_document(SPEC_RESULT, {"tone": "business", "mask": True})
+    assert "backend/app/services" not in text
+    assert "…/app/services" in text
+    assert "…/services/order.py" in text
+
+
+def test_document_falls_back_to_release_sections_without_spec():
+    text = r.render_document(RESULT, {"tone": "business", "mask": False})
+    assert "版本概览" in text and "## 1. 项目概述" not in text

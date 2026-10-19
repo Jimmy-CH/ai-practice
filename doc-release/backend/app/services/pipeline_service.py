@@ -20,7 +20,8 @@ from app.config import settings
 from app.database import AsyncSessionLocal
 from app.models import Artifact, Repo, Run
 from app.models.run import blank_steps
-from app.services import archive_service, git_service, llm_service, parser_service, renderers
+from app.services import (archive_service, git_service, llm_service, parser_service,
+                          renderers, spec_service)
 from app.services.errors import GitError, RunCancelled, ServiceError
 
 logger = logging.getLogger(__name__)
@@ -324,21 +325,49 @@ async def execute_run(run_id: str) -> None:
             await _run_step(run_id, run, state, db, 2, step3)
 
             async def step4():
-                outcome = await llm_service.rewrite_changes(
-                    changeset, cancel_check=lambda: is_cancelled(run_id))
-                if outcome["all_failed"]:
+                # 步骤 3 同时做两件事：diff 业务化改写（checklist/trace）与全量快照产品画像（九节说明书）；
+                # 两者互相独立，并发执行避免总耗时叠加
+                rewrite_task = asyncio.create_task(
+                    llm_service.rewrite_changes(changeset,
+                                                cancel_check=lambda: is_cancelled(run_id)))
+                spec_task = asyncio.create_task(
+                    spec_service.generate_product_spec(
+                        repo.path, run.head_ref, repo.name, changeset,
+                        cancel_check=lambda: is_cancelled(run_id),
+                        log=lambda channel, tag, message: _log(run_id, state, channel, tag, message)))
+                try:
+                    rewrite_outcome, spec = await asyncio.gather(rewrite_task, spec_task)
+                except BaseException:
+                    # 任一分支失败/取消都要收敛另一分支，避免后台任务悬挂
+                    for task in (rewrite_task, spec_task):
+                        if not task.done():
+                            task.cancel()
+                    await asyncio.gather(rewrite_task, spec_task, return_exceptions=True)
+                    raise
+                if rewrite_outcome["all_failed"]:
                     raise ServiceError("LLM 改写全部失败，运行终止")
-                for cl in outcome["chunk_logs"]:
+                for cl in rewrite_outcome["chunk_logs"]:
                     if cl["ok"]:
                         _log(run_id, state, "step", "分块", f"{cl['chunk']}：生成 {cl['features']} 个功能点")
                     else:
                         _log(run_id, state, "warn", "分块", f"{cl['chunk']}：改写失败（{cl['error'][:60]}）")
-                for item in outcome["lowConfidence"]:
+                for item in rewrite_outcome["lowConfidence"]:
                     _log(run_id, state, "warn", "复核", item)
                 _log(run_id, state, "step", "改写",
-                     f"功能点 {len(outcome['features'])} 个 · 置信度 {outcome['llm']['confidence']} · "
-                     f"术语命中 {outcome['llm']['glossaryHits']} 处")
-                return outcome
+                     f"功能点 {len(rewrite_outcome['features'])} 个 · "
+                     f"置信度 {rewrite_outcome['llm']['confidence']} · "
+                     f"术语命中 {rewrite_outcome['llm']['glossaryHits']} 处")
+                snapshot = spec.get("snapshot") or {}
+                summary = (f"快照 {snapshot.get('files', 0)} 个文件 · "
+                           f"{len(spec.get('modules') or [])} 个模块")
+                if snapshot.get("skipped"):
+                    summary += f" · 跳过 {snapshot['skipped']} 个"
+                if spec.get("degradedModules"):
+                    summary += f" · 降级 {len(spec['degradedModules'])} 个"
+                _log(run_id, state, "step", "说明书", summary)
+                for item in spec.get("lowConfidence") or []:
+                    _log(run_id, state, "warn", "复核", item)
+                return {"rewrite": rewrite_outcome, "spec": spec}
 
             outcome = await _run_step(run_id, run, state, db, 3, step4)
 
@@ -360,11 +389,12 @@ async def execute_run(run_id: str) -> None:
                                   "ms": s.get("duration_ms", 0)} for s in state["steps"]],
                 }
                 result = {
-                    "features": outcome["features"],
-                    "highlights": outcome["highlights"],
-                    "lowConfidence": outcome["lowConfidence"],
-                    "llm": outcome["llm"],
+                    "features": outcome["rewrite"]["features"],
+                    "highlights": outcome["rewrite"]["highlights"],
+                    "lowConfidence": outcome["rewrite"]["lowConfidence"],
+                    "llm": outcome["rewrite"]["llm"],
                     "contractSignals": changeset["contract_signals"],
+                    "spec": outcome["spec"],
                     "meta": meta,
                 }
                 opts = {"tone": run.tone, "mask": run.mask}
@@ -406,7 +436,8 @@ async def execute_run(run_id: str) -> None:
                              .where(Artifact.run_id == run.id, Artifact.kind == "trace")
                              .values(bytes=trace_path.stat().st_size))
 
-            final_status = "degraded" if outcome["lowConfidence"] else "succeeded"
+            final_status = ("degraded" if outcome["rewrite"]["lowConfidence"]
+                            or outcome["spec"].get("lowConfidence") else "succeeded")
             state["status"] = final_status
             state["result"] = result
             state["current_step"] = len(state["steps"])

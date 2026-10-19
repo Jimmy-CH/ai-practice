@@ -187,6 +187,12 @@ def _span_days(commits: list[dict]) -> int:
     return max((last - first).days, 1)
 
 
+def list_tree(repo_path: str, ref: str) -> list[str]:
+    """枚举指定引用下的全部文件路径（只读；-z 避免特殊字符被转义）。"""
+    out = _run_git(repo_path, ["ls-tree", "-r", "--name-only", "-z", _check_ref(ref)])
+    return [p for p in out.split("\x00") if p]
+
+
 def read_files(repo_path: str, ref: str, paths: list[str]) -> dict[str, str]:
     """批量读取指定引用下的文件内容（单次 git cat-file --batch）；缺失文件返回空串。"""
     ref = _check_ref(ref)

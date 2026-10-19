@@ -66,8 +66,12 @@ async def test_execute_run_success(work_repo, db_session, archive_root):
     target = archive_root / "docs" / "release" / "v1.1.0"
     assert (target / "checklist.csv").exists()
     assert (target / "product-doc.md").exists()
+    document = (target / "product-doc.md").read_text(encoding="utf-8")
+    assert "## 4. 功能清单及核心逻辑" in document
+    assert run.result["spec"]["modules"]
     trace = json.loads((target / "trace.json").read_text(encoding="utf-8"))
     assert trace["runId"] == run.id
+    assert trace["spec"]["prompt"] == "spec/v1"
     assert all(p["ok"] for p in trace["pipeline"])   # 终局重算后五步全 ok
     assert pipeline_service.get_live_state(run.id) is None  # 终态后清理内存态
     assert {a["kind"]: a["bytes"] for a in trace["artifacts"]} == {

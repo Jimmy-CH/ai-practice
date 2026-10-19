@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     deepseek_api_key: str = ""
     llm_timeout: int = 120
     llm_max_concurrency: int = 3
+    # 九节产品说明书：全量快照分模块分析的限额与并发
+    spec_max_modules: int = 12
+    spec_max_files_per_module: int = 12
+    spec_max_file_chars: int = 4000
+    spec_concurrency: int = 2
     db_url: str = "sqlite+aiosqlite:///./docrelease.db"
     archive_dir: str = "archive"
     sample_repo_dir: str = "sample_repo/order-center"

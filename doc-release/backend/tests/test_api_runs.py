@@ -34,8 +34,27 @@ async def _wait_terminal(client, run_id, timeout=15.0) -> dict:
 
 
 def _slow_chat(seconds: float):
+    from app.prompts import spec_v1
+
     async def chat(system, user):
         await asyncio.sleep(seconds)
+        if spec_v1.PROMPT_MARKER in system:
+            if user.startswith("模块："):
+                return jsonlib.dumps({
+                    "responsibility": "示例模块",
+                    "functions": [{"name": "示例功能", "logic": "读 A", "roles": ["研发"],
+                                  "priority": "P0"}],
+                    "flows": [{"title": "示例流程",
+                               "mermaid": "flowchart TD\n A[\"开始\"] --> B[\"结束\"]"}],
+                    "entities": [], "enums": [], "rules": [], "errorCodes": [], "nfr": {},
+                }, ensure_ascii=False)
+            return jsonlib.dumps({
+                "overview": {"name": "示例项目", "positioning": "示例定位",
+                             "problems": [], "scope": []},
+                "roles": [{"role": "研发", "scenarios": ["查看说明"]}],
+                "architecture": {"stack": [], "modules": [],
+                                 "diagram": "flowchart LR\n A[\"前端\"] --> B[\"后端\"]"},
+            }, ensure_ascii=False)
         return jsonlib.dumps({"features": [], "highlights": [], "confidence": 0.5},
                              ensure_ascii=False)
     return chat
@@ -63,7 +82,8 @@ async def test_run_full_flow(client, sample_dir):
     assert "自动生成的功能点" in art.text
 
     doc = await client.get(f"/api/runs/{run_id}/artifacts/document", params={"tone": "tech"})
-    assert doc.status_code == 200 and "技术说明" in doc.text
+    assert doc.status_code == 200 and "## 4. 功能清单及核心逻辑" in doc.text
+    assert "```mermaid" in doc.text
 
     dl = await client.get(f"/api/runs/{run_id}/artifacts/document/download")
     assert "attachment" in dl.headers["content-disposition"]
