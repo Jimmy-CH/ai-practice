@@ -13,6 +13,15 @@ def test_archive_dir_accepts_normal_version(tmp_path):
     assert d.name == "v2.13.4"
 
 
+def test_normalize_version_keeps_single_segment():
+    assert archive_service.normalize_version(" v2.13.4 ") == "v2.13.4"
+    assert archive_service.normalize_version("release/2026-10") == "release-2026-10"
+    assert archive_service.normalize_version('v1:2*3?|<>"') == "v1-2-3"
+    assert archive_service.normalize_version("   ") == "unversioned"
+    assert archive_service.normalize_version("..") == "unversioned"
+    assert len(archive_service.normalize_version("x" * 200)) == 120
+
+
 def test_archive_dir_rejects_traversal(tmp_path):
     for bad in ("../outside", "..\\outside", "a/../..", ".", ".."):
         with pytest.raises(ServiceError):

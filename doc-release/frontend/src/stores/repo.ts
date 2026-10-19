@@ -36,7 +36,12 @@ export const useRepoStore = defineStore('repo', {
   },
   actions: {
     async loadRepos() {
-      this.repos = await api.getRepos()
+      try {
+        this.repos = await api.getRepos()
+      } catch (err) {
+        this.error = api.extractError(err)
+        return
+      }
       if (this.currentRepoId === null && this.repos.length) {
         await this.selectRepo(this.repos[0].id)
       }
@@ -48,11 +53,28 @@ export const useRepoStore = defineStore('repo', {
       this.loadingPreview = false
       this.currentRepoId = id
       this.preview = null
+      // 旧仓库的 refs/范围对新仓库无效，先清空再加载，避免加载失败时残留可误提交的选项
+      this.refs = null
+      this.scenarios = []
+      this.baseRef = ''
+      this.headRef = ''
+      this.versionLabel = ''
       this.error = ''
-      const refs = await api.getRefs(id)
+      let refs: Refs
+      try {
+        refs = await api.getRefs(id)
+      } catch (err) {
+        if (seq === repoSeq) this.error = api.extractError(err)
+        return
+      }
       if (seq !== repoSeq) return
       this.refs = refs
-      const scenarios = await api.getScenarios(id)
+      let scenarios: Scenario[] = []
+      try {
+        scenarios = await api.getScenarios(id)
+      } catch {
+        scenarios = []   // 场景只是快捷入口，缺失不影响手动选择范围
+      }
       if (seq !== repoSeq) return
       this.scenarios = scenarios
       const first = scenarios[0]
@@ -113,11 +135,14 @@ export const useRepoStore = defineStore('repo', {
       }
       this.currentRepoId = run.repo_id
       this.preview = null
+      this.refs = null
+      this.scenarios = []
       this.error = ''
       let refs: Refs
       try {
         refs = await api.getRefs(run.repo_id)
-      } catch {
+      } catch (err) {
+        if (seq === repoSeq) this.error = api.extractError(err)
         return
       }
       if (seq !== repoSeq) return

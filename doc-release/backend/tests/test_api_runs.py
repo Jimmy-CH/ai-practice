@@ -53,6 +53,9 @@ async def test_run_full_flow(client, sample_dir):
     assert detail["status"] == "succeeded"
     assert detail["repo_name"] == "repo"
     assert [a["kind"] for a in detail["artifacts"]] == ["checklist", "document", "trace"]
+    # 时间戳带 Z 表示绝对时间，前端才能正确换算成本地时间
+    assert detail["created_at"].endswith("Z")
+    assert detail["finished_at"].endswith("Z")
 
     art = await client.get(f"/api/runs/{run_id}/artifacts/checklist")
     assert art.status_code == 200
@@ -155,6 +158,26 @@ async def test_sse_live_and_finished(client, sample_dir, monkeypatch):
             if events2 and events2[-1] == "done":
                 break
     assert events2 == ["snapshot", "done"]
+
+
+async def test_cancel_run_without_live_task(client, db_session, sample_dir):
+    """服务重启后遗留的运行：进程内已无任务，取消需直接收敛，否则永久卡死。"""
+    from app.models import Run
+    from app.models.run import blank_steps
+
+    repo_id = await _register(client, sample_dir)
+    steps = blank_steps()
+    steps[0]["status"] = "active"
+    stale = Run(repo_id=repo_id, base_ref="v1.0.0", head_ref="v1.1.0",
+                version_label="v1.1.0", status="running", steps=steps)
+    db_session.add(stale)
+    await db_session.commit()
+
+    assert (await client.post(f"/api/runs/{stale.id}/cancel")).status_code == 200
+    detail = (await client.get(f"/api/runs/{stale.id}")).json()
+    assert detail["status"] == "cancelled"
+    assert detail["steps"][0]["status"] == "pending"
+    assert (await client.delete(f"/api/runs/{stale.id}")).status_code == 200
 
 
 async def test_delete_run_and_archive(client, sample_dir):

@@ -13,6 +13,9 @@ export function subscribeRun(
   const controller = new AbortController()
   let closed = false
   let retries = 0
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  // 单个事件块的缓冲上限：对端持续发送不完整数据时不能无限膨胀
+  const MAX_BUFFER = 1 << 20
 
   const connect = async (): Promise<void> => {
     try {
@@ -23,10 +26,11 @@ export function subscribeRun(
       if (!resp.ok || !resp.body) {
         throw new Error(`SSE 连接失败：HTTP ${resp.status}`)
       }
-      retries = 0
       const reader = resp.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
+      // 连接建立不代表链路可用：服务端接受后立即断开时必须继续退避，不能把重试次数清零
+      let healthy = false
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
@@ -37,6 +41,10 @@ export function subscribeRun(
           buffer = buffer.slice(idx + 2)
           const ev = parseBlock(block)
           if (ev) {
+            if (!healthy) {
+              healthy = true
+              retries = 0
+            }
             onEvent(ev)
             if (ev.event === 'done') {
               closed = true
@@ -46,6 +54,7 @@ export function subscribeRun(
           }
           idx = buffer.indexOf('\n\n')
         }
+        if (buffer.length > MAX_BUFFER) buffer = ''
       }
       if (!closed) throw new Error('SSE 连接中断')
     } catch (err) {
@@ -55,7 +64,10 @@ export function subscribeRun(
         return
       }
       retries += 1
-      setTimeout(connect, 1000 * 2 ** (retries - 1))
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null
+        void connect()
+      }, 1000 * 2 ** (retries - 1))
     }
   }
 
@@ -64,6 +76,10 @@ export function subscribeRun(
   return {
     close: () => {
       closed = true
+      if (reconnectTimer !== null) {
+        clearTimeout(reconnectTimer)
+        reconnectTimer = null
+      }
       controller.abort()
     },
   }

@@ -85,3 +85,34 @@ def test_collect_diff_expands_rename(repo):
     assert f["added"] == 0 and f["removed"] == 0
     # R100 纯重命名：patch 应无内容行，而非把新路径当整文件新增
     assert f["lines"] == [] and f["truncated"] is False
+
+
+def test_collect_diff_splits_multi_file_patch(repo):
+    """一次 diff 按文件切分后，每个文件都应拿到自己的内容行。"""
+    write_files(repo, {
+        "src/b.ts": "export const B = 1;\n",
+        "docs/说明 文档.md": "# 需求说明\n",
+    })
+    commit(repo, "add files", date="2026-08-23 09:00:00 +0800")
+    tag(repo, "v1.2.0")
+
+    data = git_service.collect_diff(str(repo), "v1.1.0", "v1.2.0")
+    by_path = {f["path"]: f for f in data["files"]}
+    assert set(by_path) == {"src/b.ts", "docs/说明 文档.md"}
+    assert by_path["src/b.ts"]["lines"][0] == {"t": "add", "s": "export const B = 1;"}
+    assert by_path["docs/说明 文档.md"]["lines"][0] == {"t": "add", "s": "# 需求说明"}
+
+
+def test_read_files_batch(repo):
+    got = git_service.read_files(str(repo), "v1.1.0",
+                                 ["src/a.ts", "src/missing.ts", "README.md"])
+    assert "export function run" in got["src/a.ts"]
+    assert got["src/missing.ts"] == ""
+    assert got["README.md"].startswith("# demo")
+    assert git_service.read_files(str(repo), "v1.1.0", []) == {}
+
+
+def test_check_ref_rejects_unsafe_input(repo):
+    for bad in ("--all", "HEAD --output=x", "a b", "main..dev", "refs/heads/x;rm"):
+        with pytest.raises(GitError):
+            git_service.resolve_ref(str(repo), bad)

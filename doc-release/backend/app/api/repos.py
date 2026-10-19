@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -32,14 +33,16 @@ async def list_repos(db: AsyncSession = Depends(get_db)) -> list[dict]:
 @router.post("", status_code=201)
 async def create_repo(payload: RepoCreate, db: AsyncSession = Depends(get_db)) -> dict:
     try:
-        git_service.validate_repo(payload.path)
+        await asyncio.to_thread(git_service.validate_repo, payload.path)
     except GitError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    existing = (await db.execute(select(Repo).where(Repo.path == payload.path))).scalar_one_or_none()
+    # 统一存绝对路径：相对路径随服务启动目录变化，也无法用于去重
+    path = str(Path(payload.path).resolve())
+    existing = (await db.execute(select(Repo).where(Repo.path == path))).scalar_one_or_none()
     if existing is not None:
         raise HTTPException(status_code=409, detail="该仓库路径已注册")
-    name = (payload.name or "").strip() or Path(payload.path).name
-    repo = Repo(name=name, path=payload.path, is_sample=False)
+    name = (payload.name or "").strip() or Path(path).name
+    repo = Repo(name=name, path=path, is_sample=False)
     db.add(repo)
     await db.commit()
     await db.refresh(repo)
@@ -62,7 +65,7 @@ async def delete_repo(repo_id: int, db: AsyncSession = Depends(get_db)) -> dict:
 async def repo_refs(repo_id: int, db: AsyncSession = Depends(get_db)) -> dict:
     repo = await _get_repo_or_404(db, repo_id)
     try:
-        return git_service.list_refs(repo.path)
+        return await asyncio.to_thread(git_service.list_refs, repo.path)
     except GitError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -78,6 +81,8 @@ async def repo_preview(repo_id: int, base: str, head: str,
                        db: AsyncSession = Depends(get_db)) -> dict:
     repo = await _get_repo_or_404(db, repo_id)
     try:
-        return git_service.collect_diff(repo.path, base, head, max_lines=PREVIEW_MAX_LINES)
+        # 预览是同步热路径：git 子进程不能跑在事件循环上
+        return await asyncio.to_thread(git_service.collect_diff, repo.path, base, head,
+                                       PREVIEW_MAX_LINES)
     except GitError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

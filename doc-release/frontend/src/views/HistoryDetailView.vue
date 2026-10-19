@@ -12,8 +12,8 @@
         <div class="meta-item"><span class="muted">仓库</span><b>{{ runStore.current.repo_name }}</b></div>
         <div class="meta-item"><span class="muted">版本</span><b>{{ runStore.current.version_label }}</b></div>
         <div class="meta-item"><span class="muted">范围</span><b class="mono">{{ runStore.current.base_ref }}..{{ runStore.current.head_ref }}</b></div>
-        <div class="meta-item"><span class="muted">开始</span><b class="mono">{{ fmt(runStore.current.created_at) }}</b></div>
-        <div class="meta-item"><span class="muted">结束</span><b class="mono">{{ fmt(runStore.current.finished_at) }}</b></div>
+        <div class="meta-item"><span class="muted">开始</span><b class="mono">{{ formatDateTime(runStore.current.created_at) }}</b></div>
+        <div class="meta-item"><span class="muted">结束</span><b class="mono">{{ formatDateTime(runStore.current.finished_at) }}</b></div>
       </div>
       <div v-else class="panel-body empty">加载运行详情中…</div>
     </section>
@@ -34,6 +34,7 @@ import PipelinePanel from '@/components/PipelinePanel.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { useRepoStore } from '@/stores/repo'
 import { useRunStore } from '@/stores/run'
+import { formatDateTime } from '@/utils/datetime'
 
 const route = useRoute()
 const router = useRouter()
@@ -41,10 +42,6 @@ const runStore = useRunStore()
 const repoStore = useRepoStore()
 
 const runId = computed(() => String(route.params.id || ''))
-
-function fmt(iso: string | null): string {
-  return iso ? iso.replace('T', ' ').slice(0, 19) : '-'
-}
 
 onMounted(async () => {
   try {

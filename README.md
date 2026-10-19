@@ -1,6 +1,6 @@
 # AI Practice
 
-AI 全栈实践项目集合，涵盖从基础 AI 对话到企业级知识库问答的完整技术栈探索。每个子项目均为独立的前后端分离应用，围绕大模型（LLM）能力展开，逐步深入不同 AI 应用场景。
+AI 全栈实践项目集合，涵盖从基础 AI 对话、数据分析 Agent、RAG 知识库，到内容生成、物料生产与发布文档自动化的完整技术栈探索。每个子项目均为独立的前后端分离应用，围绕大模型（LLM）能力展开，逐步深入不同 AI 应用场景。
 
 ## 项目总览
 
@@ -11,12 +11,14 @@ AI 全栈实践项目集合，涵盖从基础 AI 对话到企业级知识库问�
 | [data-agent](#3-data-agent) | 数据分析 Agent | LangChain ReAct Agent + SQL 工具 + RBAC 权限 |
 | [rag-knowledge-base](#4-rag-knowledge-base) | RAG 知识库问答 | ChromaDB 向量检索 + 语义缓存 + 可观测性 |
 | [doc-release](#5-doc-release) | 发布文档自动生成（释文） | 五步异步流水线 + SSE + tree-sitter AST + 星语 LLM |
+| [content-workbench](#6-content-workbench) | 内容生产发布工作台 | 多资料生成 + 证据引用 + 审核与审计闭环 |
+| [ai-material-generator](#7-ai-material-generator) | AI 运营物料智能生成助手 | 文档解析 + 六类物料 + 审核工作流 + 品牌模板 PPTX |
 
 ## 技术栈
 
-**后端：** Python 3.11+ · FastAPI · SQLAlchemy 2.0 (Async) · LangChain · ChromaDB · Redis · DeepSeek API · OpenAI API
+**后端：** Python 3.11+ · FastAPI · SQLAlchemy 2.0 (Async) · LangChain · ChromaDB · Redis · SQLite · python-docx · python-pptx · DeepSeek / 星语（Xingyu）LLM · OpenAI Embedding
 
-**前端：** Vue 3 · TypeScript · Vite · Pinia · Vue Router · Element Plus · Axios
+**前端：** Vue 3 · TypeScript · Vite · Pinia · Vue Router · Element Plus · Axios · Playwright（E2E）
 
 **基础设施：** Docker Compose · Prometheus · Grafana
 
@@ -111,11 +113,55 @@ rag-knowledge-base/
 - **结构化中间层**：LLM 只产出 JSON 功能点，产物由确定性渲染器生成，可溯源可比对
 - **内置示例仓库**：order-center 含补丁 / 功能 / 大版本三大变更场景，首次启动自动生成
 - **发布历史**：运行回看、按口径（业务/技术）与脱敏开关即时重渲染、导出与删除
+- **交互演示页**：根目录 `demo-app.html` 提供产品交互演示
 
 ```
 doc-release/
 ├── backend/     # FastAPI + 五步流水线 + tree-sitter + SSE
 └── frontend/    # Vue 3 + Element Plus 三栏工作台 + 发布历史
+```
+
+---
+
+## 6. content-workbench
+
+> 内容生产发布工作台：输入活动主题、产品文档、操作手册等资料，一键产出公告、FAQ、海报文案，经人工审核后下载或创建模拟发布任务。
+
+**核心能力：**
+- **多资料生成**：围绕同一活动主题组织多份资料，统一生成三类内容物料
+- **证据约束**：生成结果与引用资料绑定，审核时可查看引用来源，降低无依据表述
+- **审核与审计**：editor 创建、编辑、提交，reviewer 查看引用后通过 / 驳回，全程审计日志
+- **资产与发布**：审核通过的资产支持下载，并可创建模拟发布任务
+- **端到端验证**：pytest 覆盖后端流程，Playwright 覆盖前端主流程
+
+```
+content-workbench/
+├── backend/     # FastAPI + SQLAlchemy async + SQLite + DeepSeek
+├── frontend/    # Vue 3 + Element Plus + Pinia + Playwright E2E
+└── docs/        # 用户手册与使用指南
+```
+
+---
+
+## 7. ai-material-generator
+
+> AI 运营物料智能生成助手：输入版本迭代文档（文本或 .docx），自动解析功能点、变更优化、注意事项、风险提示四类要点，一键生成面向不同受众的六类运营物料初稿。
+
+**核心能力：**
+- **文档输入**：支持粘贴正文或上传 .docx；上传后自动提取正文回填输入框，可继续编辑或一键清空
+- **要点解析**：四类要点结构化展示，支持条目级增删改并保存复用
+- **六类物料 × 三类受众**：版本宣发稿、网点操作指引、FAQ 问答库、行者推送话术、海报脚本、培训课件大纲
+- **缓存与编辑**：解析结果与生成结果自动缓存，切换受众 / 物料类型优先复用；生成内容可直接编辑
+- **审核工作流**：保存草稿 → 提交审核 → reviewer 通过 / 驳回；仅审核通过的资产可下载 Markdown
+- **海报配图**：海报脚本可调用星语文生图生成配图，支持预览、下载、删除
+- **培训课件 PPT**：培训课件大纲一键导出 16:9 可编辑 PPTX，套用圆通品牌模板（封面 / 目录 / 章节页 / 封底），实时生成不落盘
+- **内网部署**：提供 deploy 安装脚本，依赖在线 pip 安装，支持 Linux 非 root 用户部署
+
+```
+ai-material-generator/
+├── backend/     # FastAPI + SQLAlchemy async + python-docx/python-pptx + 星语/DeepSeek
+├── frontend/    # Vue 3 + Element Plus + Pinia
+└── deploy/      # 内网部署脚本与 systemd 配置
 ```
 
 ---
@@ -126,7 +172,7 @@ doc-release/
 
 - Python 3.11+
 - Node.js 22+ / npm
-- DeepSeek API Key（[申请地址](https://platform.deepseek.com/)）
+- DeepSeek API Key（[申请地址](https://platform.deepseek.com/)）或星语（Xingyu）大模型网关
 - OpenAI API Key（rag-knowledge-base 的 Embedding 用）
 
 ### 运行任意子项目
@@ -141,7 +187,7 @@ python -m venv venv
 .\venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 
-# 配置 .env 文件（参考各子项目 README）
+# 配置 .env 文件（参考各子项目 README；ai-material-generator 默认星语，可切换 DeepSeek）
 uvicorn app.main:app --reload
 ```
 
@@ -153,7 +199,7 @@ npm install
 npm run dev
 ```
 
-各子项目的详细配置说明请参考对应目录下的 `README.md`。
+各子项目的详细配置、默认端口、内置账号与测试方式请参考对应目录下的 `README.md`。
 
 ## 项目架构
 
@@ -175,21 +221,36 @@ ai-practice/
 │   └── tests/               #   pytest 测试
 ├── doc-release/             # ⑤ 发布文档自动生成（释文）
 │   ├── backend/             #   五步流水线 + tree-sitter + 星语 LLM
-│   └── frontend/            #   Vue 3 三栏工作台 + 发布历史
-└── docs/                    # 设计文档
+│   ├── frontend/            #   Vue 3 三栏工作台 + 发布历史
+│   └── sample_repo/         #   内置示例仓库（order-center）
+├── content-workbench/       # ⑥ 内容生产发布工作台
+│   ├── backend/             #   FastAPI + 多资料生成 + 审核/审计
+│   ├── frontend/            #   Vue 3 + Element Plus + Playwright E2E
+│   └── docs/                #   用户手册
+├── ai-material-generator/   # ⑦ AI 运营物料智能生成助手
+│   ├── backend/             #   FastAPI + python-docx/python-pptx + 星语/DeepSeek
+│   ├── frontend/            #   Vue 3 + Element Plus
+│   └── deploy/              #   内网部署脚本
+├── docs/superpowers/        # 设计与实施文档（specs / plans）
+└── demo-app.html            # 释文 DocRelease 交互演示页
 ```
 
 ## 学习路径建议
 
 ```
 ai-chat-demo ──→ ai-chat ──→ data-agent ──→ rag-knowledge-base
-  (SSE 流式)     (认证+续传)   (Agent 工具)    (RAG + 工程化)
+                                              │
+                                              ▼
+                     doc-release ←── content-workbench ←── ai-material-generator
 ```
 
 1. **ai-chat-demo**：理解 LLM 流式输出（SSE）与前后端对接
 2. **ai-chat**：学习用户认证、JWT、数据库 ORM、断点续传
 3. **data-agent**：掌握 LangChain Agent、ReAct 模式、工具调用
 4. **rag-knowledge-base**：深入 RAG 架构、向量数据库、语义缓存、监控部署
+5. **ai-material-generator**：练习业务文档解析、物料生成、审核流与模板化 Office 导出
+6. **content-workbench**：掌握多资料证据约束生成、审核审计与发布闭环
+7. **doc-release**：打通代码变更解析、异步流水线、SSE 进度与确定性文档渲染
 
 ## License
 
