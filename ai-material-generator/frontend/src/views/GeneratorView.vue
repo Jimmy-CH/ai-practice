@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import type { UploadInstance } from 'element-plus'
 import type { AnalysisResult, Material } from '../api/client'
-import { parseDocument, generateMaterial, generateAllMaterials, updateGeneratedMaterial } from '../api/client'
+import { extractDocxText, parseDocument, generateMaterial, generateAllMaterials, updateGeneratedMaterial } from '../api/client'
 import { saveFromGeneration, submitMaterial, listMaterials, downloadMaterial } from '@/api/materials'
+import { buildTrainingPptx } from '@/api/pptx'
 import {
   createPosterImage,
   listPosterImages,
@@ -18,7 +20,9 @@ import { Upload, Search, DocumentCopy, Download, Document, DocumentChecked, Warn
 
 const title = ref('网点管家 V3.2.0 版本迭代说明')
 const content = ref(`【版本】网点管家 V3.2.0\n【发布日期】2026-10-20\n【适用范围】全国加盟网点\n\n一、新增功能\n1. 新增「异常件一键上报」功能\n网点扫描异常件后，可在首页直接发起上报，系统自动带出运单号、异常类型、上报时间，无需手工填写。\n\n二、优化与调整\n1. 运单批量导入：导入失败时返回具体失败原因与失败行号，便于网点自行排错。\n2. 消息中心：重要通知将后台自动推送，先在小部分网点试点，逐步放开至 30% 网点。\n3. 在线客服：由「我的」调整至「首页 - 帮助中心」。\n4. 旧版对账单：统一使用新版对账单。\n\n三、注意事项\n1. 本次版本需网点管家升级至 V3.2.0 以上版本方可使用新功能。\n2. 派费日结数据存在 24 小时延迟，以财务系统最终数据为准。\n3. 升级期间请勿强制关闭 App，避免数据同步异常。\n\n四、风险提示\n如出现派费数据缺失，请勿重复提交申诉，等待系统次日补数即可。遇到问题请勿重复操作，及时联系区域客服。`)
-const file = ref<File | null>(null)
+const uploadRef = ref<UploadInstance>()
+const readingFile = ref(false)
+const importedFileName = ref('')
 const analysis = ref<AnalysisResult | null>(null)
 const currentMaterial = ref<Material | null>(null)
 const allMaterials = ref<Material[]>([])
@@ -52,7 +56,7 @@ const materialTypes = [
 ]
 
 const stats = computed(() => {
-  const lines = content.value.split('\n').length
+  const lines = content.value ? content.value.split('\n').length : 0
   const chars = content.value.length
   return `${chars} 字 · ${lines} 行`
 })
@@ -88,11 +92,29 @@ const downloadHint = computed(() => {
 })
 
 // el-upload change 签名为 (uploadFile: UploadFile, uploadFiles: UploadFile[])，
-// 取当前文件的 raw（原生 File）作为待上传文件
-function onFileChange(uploadFile: any) {
-  if (uploadFile?.raw) {
-    file.value = uploadFile.raw
+// 取当前文件的 raw（原生 File）交给后端提取正文，回填到输入框后不再保留文件，
+// 避免解析时绕过用户对回填文本的修改。
+async function onFileChange(uploadFile: any) {
+  const raw: File | undefined = uploadFile?.raw
+  if (!raw) return
+  readingFile.value = true
+  try {
+    const result = await extractDocxText(raw)
+    content.value = result.content
+    importedFileName.value = result.filename || raw.name
+    ElMessage.success('已读取文档内容，可直接编辑')
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '文档读取失败，请检查文件内容')
+  } finally {
+    uploadRef.value?.clearFiles()
+    readingFile.value = false
   }
+}
+
+function clearContent() {
+  content.value = ''
+  importedFileName.value = ''
+  uploadRef.value?.clearFiles()
 }
 
 function findMaterial(materialType: string): Material | undefined {
@@ -104,13 +126,13 @@ async function doParse() {
     ElMessage.warning('请输入文档标题')
     return
   }
-  if (!content.value && !file.value) {
+  if (!content.value) {
     ElMessage.warning('请输入文档正文或上传 .docx 文件')
     return
   }
   loading.value = true
   try {
-    analysis.value = await parseDocument(title.value, content.value, file.value || undefined, audience.value)
+    analysis.value = await parseDocument(title.value, content.value, audience.value)
     if (analysis.value?.analysis_id) {
       ElMessage.success('解析完成（结果已保存）')
     } else {
@@ -201,6 +223,67 @@ async function copyContent() {
     ElMessage.success('已复制')
   } else {
     ElMessage.error('复制失败，请手动选择文本复制')
+  }
+}
+
+// —— 培训课件 PPT 导出（仅 training_outline 物料显示）——
+const pptxExporting = ref(false)
+const isTrainingOutline = computed(
+  () => activeMaterialType.value === 'training_outline' && !!currentMaterial.value,
+)
+
+function resolvePptxFilename(disposition: string | undefined, material: Material): string {
+  // 后端优先给出 RFC 5987 的 filename*，取不到时按物料信息本地拼接
+  const utf8 = disposition?.match(/filename\*=UTF-8''([^;]+)/i)
+  if (utf8) {
+    try {
+      return decodeURIComponent(utf8[1])
+    } catch {
+      // 编码异常时退回本地拼接
+    }
+  }
+  return `${material.title || '培训课件'}-培训课件.pptx`
+}
+
+async function blobErrorMessage(e: any, fallback: string): Promise<string> {
+  // responseType=blob 时错误体的 JSON detail 也包在 Blob 里
+  const data = e?.response?.data
+  if (data instanceof Blob) {
+    try {
+      const parsed = JSON.parse(await data.text())
+      if (parsed?.detail) return String(parsed.detail)
+    } catch {
+      // 错误体不是 JSON，使用默认提示
+    }
+  }
+  return fallback
+}
+
+async function downloadPptx() {
+  const material = currentMaterial.value
+  if (!material) return
+  pptxExporting.value = true
+  try {
+    const res = await buildTrainingPptx({
+      title: material.title || title.value,
+      content: material.content,
+      audience: material.meta.audience || audience.value,
+      source_title: title.value,
+    })
+    const blob = new Blob([res.data], {
+      type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = resolvePptxFilename(res.headers?.['content-disposition'], material)
+    a.click()
+    URL.revokeObjectURL(url)
+    ElMessage.success('PPT 已生成，请查看下载文件')
+  } catch (e: any) {
+    ElMessage.error(await blobErrorMessage(e, 'PPT 生成失败'))
+  } finally {
+    pptxExporting.value = false
   }
 }
 
@@ -528,9 +611,11 @@ async function doDeletePoster(img: PosterImage) {
       <el-input v-model="title" placeholder="请输入文档标题" class="input-title" />
 
       <el-upload
+        ref="uploadRef"
         drag
         :auto-upload="false"
         :show-file-list="false"
+        :disabled="readingFile"
         accept=".docx"
         class="uploader"
         @change="onFileChange"
@@ -540,7 +625,8 @@ async function doDeletePoster(img: PosterImage) {
           <span class="upload-link">点击或拖拽上传文档</span>
           <span>支持 .docx，也可直接粘贴正文</span>
         </div>
-        <div v-if="file" class="upload-file">{{ file.name }}</div>
+        <div v-if="readingFile" class="upload-file">正在读取文档内容…</div>
+        <div v-else-if="importedFileName" class="upload-file">已读取：{{ importedFileName }}</div>
       </el-upload>
 
       <el-input
@@ -551,9 +637,20 @@ async function doDeletePoster(img: PosterImage) {
         class="content-input"
       />
 
-      <div class="stats">{{ stats }}</div>
+      <div class="stats">
+        <span>{{ stats }}</span>
+        <el-button
+          text
+          size="small"
+          class="clear-btn"
+          :disabled="!content && !importedFileName"
+          @click="clearContent"
+        >
+          清空
+        </el-button>
+      </div>
 
-      <el-button type="primary" :loading="loading" class="parse-btn" @click="doParse">
+      <el-button type="primary" :loading="loading" :disabled="readingFile" class="parse-btn" @click="doParse">
         <el-icon><Search /></el-icon>
         重新解析文档
       </el-button>
@@ -713,6 +810,16 @@ async function doDeletePoster(img: PosterImage) {
           <el-button :disabled="!currentMaterial || isEditingMaterial" @click="copyContent">
             <el-icon><DocumentCopy /></el-icon> 复制
           </el-button>
+          <el-button
+            v-if="isTrainingOutline"
+            type="primary"
+            plain
+            :loading="pptxExporting"
+            :disabled="!currentMaterial || isEditingMaterial"
+            @click="downloadPptx"
+          >
+            <el-icon><Download /></el-icon> 下载 PPT
+          </el-button>
           <el-tooltip :content="downloadHint" placement="top">
             <span class="download-wrap" :class="{ 'is-blocked': !canDownload }" @click="onDownloadClick">
               <el-button :disabled="!canDownload">
@@ -745,6 +852,10 @@ async function doDeletePoster(img: PosterImage) {
             <el-icon><Document /></el-icon> 导出全部
           </el-button>
         </div>
+
+        <p v-if="isTrainingOutline" class="pptx-hint">
+          「下载 PPT」按当前大纲实时生成 16:9 可编辑课件（封面 / 目录 / 章节页 / 结束页）
+        </p>
 
         <div v-if="currentMaterial" v-loading="loading" class="material-content">
           <h2 class="material-title">{{ currentMaterial.title }}</h2>
@@ -851,7 +962,8 @@ async function doDeletePoster(img: PosterImage) {
 .upload-link { color: #7b2cbf; font-weight: 500; }
 .upload-file { margin-top: 8px; color: #7b2cbf; font-size: 12px; }
 .content-input { margin-bottom: 8px; }
-.stats { text-align: right; font-size: 12px; color: #909399; margin-bottom: 12px; }
+.stats { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #909399; margin-bottom: 12px; }
+.clear-btn { padding: 0; height: auto; font-size: 12px; }
 .parse-btn { width: 100%; margin-bottom: 8px; }
 .parse-tip { font-size: 12px; color: #909399; text-align: center; margin: 0; }
 .main { flex: 1; padding: 24px; overflow-y: auto; }
@@ -873,7 +985,8 @@ async function doDeletePoster(img: PosterImage) {
 .material-tag.is-checked { background: #7b2cbf; color: #fff; }
 .material-num { margin-right: 6px; opacity: .7; }
 .generate-hint { color: #909399; font-size: 12px; margin: 0 0 12px; }
-.material-actions { display: flex; gap: 10px; margin-bottom: 20px; }
+.material-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+.pptx-hint { color: #909399; font-size: 12px; margin: -10px 0 16px; }
 .download-wrap { display: inline-block; }
 .download-wrap.is-blocked :deep(.el-button) { pointer-events: none; }
 .material-content { border: 1px solid #ebeef5; border-radius: 8px; padding: 24px; background: #fff; }

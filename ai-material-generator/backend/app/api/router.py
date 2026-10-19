@@ -32,7 +32,10 @@
   GET    /api/posters/images                   当前用户指定来源+受众的图片列表
   GET    /api/posters/images/{id}/file         取回图片文件（本人）
   DELETE /api/posters/images/{id}              删除图片记录与文件（本人）
+PPT 导出 pptx
+  POST   /api/pptx/training-outline            培训课件大纲转 PPTX（editor，实时生成）
 生成器 generator
+  POST   /api/extract-text                       读取 .docx 正文文本（回填输入框，不调模型）
   POST   /api/parse                             解析文档（正文/.docx），后台预热生成
   POST   /api/generate                          生成单种物料（命中缓存直接返回）
   POST   /api/generate-all                      生成全部 6 种物料（未命中的才调模型）
@@ -48,6 +51,7 @@ from app.api.generated_materials import router as generated_materials_router
 from app.api.generator import router as generator_router
 from app.api.materials import router as materials_router
 from app.api.posters import router as posters_router
+from app.api.pptx import router as pptx_router
 
 health_router = APIRouter()
 
@@ -66,3 +70,4 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(generated_materials_router, prefix="/api/generated-materials")
     app.include_router(generator_router, prefix="/api")
     app.include_router(posters_router, prefix="/api/posters")
+    app.include_router(pptx_router, prefix="/api/pptx")

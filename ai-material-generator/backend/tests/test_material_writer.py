@@ -29,6 +29,29 @@ def test_material_types():
 
 
 @pytest.mark.asyncio
+async def test_training_outline_uses_paged_prompt(monkeypatch):
+    """培训课件大纲必须走分页模板，其余物料继续用通用模板。"""
+    prompts: list[str] = []
+
+    async def fake_chat(messages):
+        prompts.append(messages[-1]["content"])
+        return "# 培训课件\n\n## 培训目标\n- 掌握异常件上报"
+
+    monkeypatch.setattr("app.services.material_writer._chat", fake_chat)
+    result = await generate_material(
+        "网点管家 V3.2.0", {"新增功能": ["异常件一键上报"]}, "网点管理员", "training_outline"
+    )
+    assert "每一页幻灯片用" in prompts[0]
+    assert "注意事项与风险提示" in prompts[0]
+    assert result["meta"]["material_type"] == "培训课件大纲"
+
+    await generate_material(
+        "网点管家 V3.2.0", {"新增功能": ["异常件一键上报"]}, "网点管理员", "version_announcement"
+    )
+    assert "每一页幻灯片用" not in prompts[1]
+
+
+@pytest.mark.asyncio
 async def test_deduped_reuses_inflight_task_for_same_key():
     """同 key 并发调用必须复用同一在飞任务，避免后台预热与用户请求双倍调用 LLM。"""
     calls = []

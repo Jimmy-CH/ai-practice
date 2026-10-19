@@ -60,18 +60,28 @@ export interface GeneratedMaterial {
   updated_at?: string
 }
 
-export async function parseDocument(title: string, content: string, file?: File, audience?: string): Promise<AnalysisResult> {
+export async function parseDocument(title: string, content: string, audience?: string): Promise<AnalysisResult> {
   const form = new FormData()
   form.append('title', title)
-  if (file) {
-    form.append('file', file)
-  } else {
-    form.append('content', content)
-  }
+  form.append('content', content)
   if (audience) {
     form.append('audience', audience)
   }
   const response = await api.post('/parse', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return response.data
+}
+
+export interface ExtractTextResult {
+  filename: string
+  content: string
+}
+
+export async function extractDocxText(file: File): Promise<ExtractTextResult> {
+  const form = new FormData()
+  form.append('file', file)
+  const response = await api.post('/extract-text', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
   return response.data
