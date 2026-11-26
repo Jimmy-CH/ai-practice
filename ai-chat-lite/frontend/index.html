@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Chat Lite</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <section id="auth-view" class="auth">
+    <form id="auth-form" class="auth-card" autocomplete="on">
+      <h1>AI Chat Lite</h1>
+      <p class="hint" id="auth-hint">登录后开始多轮流式对话</p>
+      <label class="field">
+        <span>用户名</span>
+        <input id="username" name="username" autocomplete="username" required minlength="3"
+               maxlength="32" pattern="[A-Za-z0-9_]+" placeholder="字母、数字或下划线" />
+      </label>
+      <label class="field">
+        <span>密码</span>
+        <input id="password" name="password" type="password" autocomplete="current-password"
+               required minlength="6" maxlength="64" placeholder="至少 6 位" />
+      </label>
+      <button type="submit" id="auth-submit" class="primary">登录</button>
+      <button type="button" id="auth-toggle" class="link">没有账号？去注册</button>
+      <p class="error" id="auth-error" hidden></p>
+    </form>
+  </section>
+
+  <section id="app-view" class="app" hidden>
+    <aside class="sidebar">
+      <div class="sidebar-head">
+        <span class="brand">AI Chat Lite</span>
+        <button id="new-chat" class="icon-btn" title="新建对话">＋</button>
+      </div>
+      <ul id="conversation-list" class="conv-list"></ul>
+      <div class="sidebar-foot">
+        <span id="current-user" class="muted"></span>
+        <button id="logout" class="link">退出</button>
+      </div>
+    </aside>
+
+    <main class="chat">
+      <header class="chat-head">
+        <h2 id="chat-title">新对话</h2>
+        <span id="chat-status" class="chat-status"></span>
+      </header>
+
+      <div id="message-list" class="message-list">
+        <div id="empty-state" class="empty-state">
+          <p>新建一个对话，开始提问。</p>
+          <p class="muted">Enter 发送，Shift+Enter 换行</p>
+        </div>
+      </div>
+
+      <form id="composer" class="composer">
+        <textarea id="input" rows="2" placeholder="输入消息，Enter 发送，Shift+Enter 换行" maxlength="8000"></textarea>
+        <div class="composer-actions">
+          <button type="submit" id="send" class="primary">发送</button>
+          <button type="button" id="stop" class="danger" hidden>停止</button>
+        </div>
+      </form>
+      <p class="error" id="chat-error" hidden></p>
+    </main>
+  </section>
+
+  <script src="/markdown.js"></script>
+  <script src="/app.js" type="module"></script>
+</body>
+</html>

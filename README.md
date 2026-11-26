@@ -8,6 +8,7 @@ AI 全栈实践项目集合，涵盖从基础 AI 对话、数据分析 Agent、R
 |--------|------|----------|
 | [ai-chat-demo](#1-ai-chat-demo) | AI 对话演示版 | FastAPI + Vue 3 + DeepSeek SSE 流式对话 |
 | [ai-chat](#2-ai-chat) | AI 对话完整版 | 用户认证 + JWT + SSE 断点续传 + 全异步架构 |
+| [ai-chat-lite](#8-ai-chat-lite) | 原生前端轻量对话版 | FastAPI + httpx 流式消费 + 原生 HTML/JS + 后台流任务 |
 | [data-agent](#3-data-agent) | 数据分析 Agent | LangChain ReAct Agent + SQL 工具 + RBAC 权限 |
 | [rag-knowledge-base](#4-rag-knowledge-base) | RAG 知识库问答 | ChromaDB 向量检索 + 语义缓存 + 可观测性 |
 | [doc-release](#5-doc-release) | 发布文档自动生成（释文） | 五步异步流水线 + SSE + tree-sitter AST + 星语 LLM |
@@ -18,7 +19,7 @@ AI 全栈实践项目集合，涵盖从基础 AI 对话、数据分析 Agent、R
 
 **后端：** Python 3.11+ · FastAPI · SQLAlchemy 2.0 (Async) · LangChain · ChromaDB · Redis · SQLite · python-docx · python-pptx · DeepSeek / 星语（Xingyu）LLM · OpenAI Embedding
 
-**前端：** Vue 3 · TypeScript · Vite · Pinia · Vue Router · Element Plus · Axios · Playwright（E2E）
+**前端：** Vue 3 · TypeScript · Vite · Pinia · Vue Router · Element Plus · Axios · Playwright（E2E）· 原生 HTML/JS（ai-chat-lite，零框架零构建）
 
 **基础设施：** Docker Compose · Prometheus · Grafana
 
@@ -166,6 +167,27 @@ ai-material-generator/
 
 ---
 
+## 8. ai-chat-lite
+
+> 不依赖任何前端框架的流式对话系统：后端用 httpx 逐行消费上游 SSE，前端用原生 HTML/JS 手写 SSE 解析与打字机渲染，单端口同源部署。
+
+**核心能力：**
+- **后台流任务**：`/messages/{id}/stream` 只负责订阅，上游消费在 `asyncio.Task` 中独立进行；断线只退订不打断生成，重连用 `resume_from` 回放缺失片段
+- **停止与落库**：`POST /messages/{id}/stop` 取消任务，部分内容立即落库，前端收到 `done(status=stopped)`
+- **错误不泄漏**：所有上游异常在异步生成器内部收敛为 `error` 事件（`upstream_http` / `upstream_parse` / `upstream_network` / `timeout` / `internal`），不会白屏
+- **多会话**：侧边栏新建 / 切换 / 删除，首条消息自动生成会话标题
+- **上下文裁剪**：只回传最近 N 条已完成消息，避免 prompt 无界增长
+- **零依赖前端**：单页原生 SPA，自带轻量 Markdown 渲染（先转义再排版），支持停止生成、断线退避重连、60s 静默看门狗
+- **测试**：pytest 覆盖认证、会话 CRUD、httpx 流式解析、流任务状态机与 SSE 接口
+
+```
+ai-chat-lite/
+├── backend/     # FastAPI + httpx 流式 + 后台任务 + JWT + SQLite
+└── frontend/    # 原生 HTML/JS/CSS（FastAPI StaticFiles 托管）
+```
+
+---
+
 ## 快速开始
 
 ### 环境要求
@@ -231,6 +253,9 @@ ai-practice/
 │   ├── backend/             #   FastAPI + python-docx/python-pptx + 星语/DeepSeek
 │   ├── frontend/            #   Vue 3 + Element Plus
 │   └── deploy/              #   内网部署脚本
+├── ai-chat-lite/            # ⑧ 原生前端流式对话（轻量版）
+│   ├── backend/             #   FastAPI + httpx 流式 + 后台流任务 + JWT
+│   └── frontend/            #   原生 HTML/JS/CSS（零构建）
 ├── docs/superpowers/        # 设计与实施文档（specs / plans）
 └── demo-app.html            # 释文 DocRelease 交互演示页
 ```
@@ -251,6 +276,7 @@ ai-chat-demo ──→ ai-chat ──→ data-agent ──→ rag-knowledge-base
 5. **ai-material-generator**：练习业务文档解析、物料生成、审核流与模板化 Office 导出
 6. **content-workbench**：掌握多资料证据约束生成、审核审计与发布闭环
 7. **doc-release**：打通代码变更解析、异步流水线、SSE 进度与确定性文档渲染
+8. **ai-chat-lite**：不借框架手写 SSE 解析、打字机渲染、停止生成与断点续传，理解流式链路的每一处细节
 
 ## License
 
