@@ -5,7 +5,7 @@
     终端 B: 设 DEEPSEEK_API_KEY / DEEPSEEK_BASE_URL=http://127.0.0.1:8011 后启动 app.main:app
 运行：
     python scripts/e2e_stream_smoke.py            # 默认 http://127.0.0.1:8000
-    $env:SMOKE_BASE_URL="http://127.0.0.1:8010"; python scripts/e2e_stream_smoke.py
+    $env:SMOKE_BASE_URL="http://127.0.0.1:8000"; python scripts\e2e_stream_smoke.py
 
 覆盖：健康检查与静态资源、注册登录、完整流式、断线续传、运行中停止、上游错误、并发保护、越权与级联删除。
 """

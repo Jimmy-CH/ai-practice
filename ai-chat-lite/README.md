@@ -125,20 +125,25 @@ cd ai-chat-lite/backend
 
 ## 无 Key 联调（假上游）
 
-`backend/scripts/` 内置了假上游与端到端冒烟脚本，不需要真实 API Key 也能验证完整流式链路：
+`backend/scripts/` 内置了假上游与端到端冒烟脚本，不需要真实 API Key 也能验证完整流式链路。三个终端都先进入 `backend` 并激活虚拟环境（与「快速开始」一致）：
 
 ```powershell
 cd ai-chat-lite/backend
-# 终端 A：假上游
-.\venv\Scripts\python.exe -m uvicorn scripts.fake_upstream:app --port 8011
+.\venv\Scripts\Activate.ps1
 
-# 终端 B：主服务指向假上游
-$env:DEEPSEEK_API_KEY="fake"; $env:DEEPSEEK_BASE_URL="http://127.0.0.1:8011"
-.\venv\Scripts\python.exe -m uvicorn app.main:app --port 8010
+# 终端 A：假上游（默认 0.12s/片段；加 FAKE_DELAY_SECONDS / FAKE_REPEAT 可拉长单条回答）
+uvicorn scripts.fake_upstream:app --port 8011
 
-# 终端 C：跑冒烟（默认打 8000，可用 SMOKE_BASE_URL 覆盖）
-$env:SMOKE_BASE_URL="http://127.0.0.1:8010"; .\venv\Scripts\python.exe scripts/e2e_stream_smoke.py
+# 终端 B（另开窗口，同样进入 backend 并激活 venv）：主服务指向假上游
+$env:DEEPSEEK_API_KEY="fake"
+$env:DEEPSEEK_BASE_URL="http://127.0.0.1:8011"
+uvicorn app.main:app --port 8000
+
+# 终端 C（同样激活 venv）：跑冒烟，默认打 http://127.0.0.1:8000，可用 SMOKE_BASE_URL 覆盖
+python scripts\e2e_stream_smoke.py
 ```
+
+浏览器打开 http://127.0.0.1:8000 即可手工验证。假上游回复是固定示例文本；用户消息包含 `SIMULATE_HTTP_ERROR` 时假上游返回 502，用于验证错误链路。
 
 冒烟覆盖：静态资源、注册登录、完整流式（含逐块时序断言）、断线续传、运行中停止、上游 502 错误链路、会话并发 409、越权 404 与级联删除。
 
@@ -182,13 +187,4 @@ $env:SMOKE_BASE_URL="http://127.0.0.1:8010"; .\venv\Scripts\python.exe scripts/e
 
 验证结论：F5 后第一张截图与 1.5s 后的截图标题均为真实标题，且流式内容继续增长（见上表截图）。截图是两点采样而非逐帧录像，“毫秒级闪现”无法用截图证否，该保证来自上面“先恢复再显示”的代码顺序；全新浏览器首次进入（无缓存）仍会短暂看到默认标题。
 
-复现脚本（无真实 Key）：
-
-```powershell
-cd ai-chat-lite/backend
-$env:FAKE_DELAY_SECONDS="0.5"; $env:FAKE_REPEAT="4"
-.\venv\Scripts\python.exe -m uvicorn scripts.fake_upstream:app --port 8011
-# 另一个终端
-$env:DEEPSEEK_API_KEY="fake"; $env:DEEPSEEK_BASE_URL="http://127.0.0.1:8011"
-.\venv\Scripts\python.exe -m uvicorn app.main:app --port 8000
-```
+启动方式见上面的「无 Key 联调（假上游）」一节，把 `FAKE_REPEAT` 调大即可拉长单条回答，便于观察停止与断点续传。
