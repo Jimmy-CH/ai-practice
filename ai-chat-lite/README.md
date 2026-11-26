@@ -160,6 +160,7 @@ $env:SMOKE_BASE_URL="http://127.0.0.1:8010"; .\venv\Scripts\python.exe scripts/e
 | 自然结束、Markdown（加粗/列表/代码块）渲染 | 通过 | [04-done.png](docs/screenshots/04-done.png) |
 | 停止生成：保留部分内容 + 「已停止」+ 按钮复位 | 通过（首轮与修复后各一次） | [05-stopped.png](docs/screenshots/05-stopped.png)、[14-stop-after-fix.png](docs/screenshots/14-stop-after-fix.png) |
 | 刷新断点续传 | **首轮失败 → 修复后通过** | 刷新前：[11-before-refresh.png](docs/screenshots/11-before-refresh.png)；失败现象：[06-resume.png](docs/screenshots/06-resume.png)、[07-resume-done.png](docs/screenshots/07-resume-done.png)（命名沿用需求，实为卡住）；再手动刷新才补齐：[09-manual-refresh.png](docs/screenshots/09-manual-refresh.png)；修复后：[12-resume-before-refresh.png](docs/screenshots/12-resume-before-refresh.png)、[13-resume-after-refresh.png](docs/screenshots/13-resume-after-refresh.png)、[13-resume-growth.png](docs/screenshots/13-resume-growth.png)、[13-resume-done.png](docs/screenshots/13-resume-done.png) |
+| 刷新后标题 | 通过（F5 瞬间与 1.5s 后均为真实标题） | [15-title-before-refresh.png](docs/screenshots/15-title-before-refresh.png)、[16-title-after-refresh.png](docs/screenshots/16-title-after-refresh.png)、[17-title-after-refresh-1s.png](docs/screenshots/17-title-after-refresh-1s.png) |
 | 控制台 | 无红色报错 | [08-console.png](docs/screenshots/08-console.png)、[13-console-after-fix.png](docs/screenshots/13-console-after-fix.png) |
 | 网络请求 | 未见失败请求 | [10-network.png](docs/screenshots/10-network.png) |
 
@@ -172,6 +173,14 @@ $env:SMOKE_BASE_URL="http://127.0.0.1:8010"; .\venv\Scripts\python.exe scripts/e
 - 单测 `test_running_message_flushes_streaming_status`：运行中落库必须是 `streaming`（共 37 项单测通过）
 - `scripts/e2e_stream_smoke.py` 新增“停止前 DB 状态必须是 streaming”断言
 - 接口实测：发送后 1s / 2s / 3s 读取消息均为 `status=streaming`、会话 `running=true`，新订阅从 `seq=0` 完整回放
+
+### 刷新后标题回填
+
+服务端会用首条消息把会话标题改成问题摘要（`chat_service.py`），但旧前端只在 8s 一次的会话轮询里回填标题：`bootstrap()` 先 `showApp()` 再 `await refreshConversations()`，而那时 `currentId` 还是 `null`，标题回填不触发，所以刷新后最久会持续 8 秒显示默认的「新对话」。
+
+修复分两层：`selectConversation()` 拿到会话即同步回填标题；同时在 `localStorage` 缓存最近会话的 `{id, title}`，`bootstrap()` 在 `showApp()` **之前**恢复，使应用视图第一次可见时标题已经就位，不再依赖任何一次网络请求。缓存仅在登出与删除当前会话时清理。
+
+验证结论：F5 后第一张截图与 1.5s 后的截图标题均为真实标题，且流式内容继续增长（见上表截图）。截图是两点采样而非逐帧录像，“毫秒级闪现”无法用截图证否，该保证来自上面“先恢复再显示”的代码顺序；全新浏览器首次进入（无缓存）仍会短暂看到默认标题。
 
 复现脚本（无真实 Key）：
 

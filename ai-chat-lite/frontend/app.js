@@ -1,5 +1,6 @@
 // AI Chat Lite 原生前端：fetch + ReadableStream 解析 SSE，无框架、无构建链。
 const TOKEN_KEY = "ai-chat-lite-token";
+const LAST_CONV_KEY = "ai-chat-lite-last-conv";
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 1000;
 const INACTIVITY_MS = 60000;
@@ -76,6 +77,28 @@ function setStatus(text) {
   els.chatStatus.textContent = text || "";
 }
 
+// ---------------- 标题缓存 ----------------
+// 服务端在首条消息时把会话标题改写为问题摘要，但标题列表要一次请求才拿回来。
+// 刷新时先用本地缓存的标题占位，避免请求返回前先闪一下默认的「新对话」。
+
+function rememberConversation(conv) {
+  if (!conv || conv.id == null || !conv.title) return;
+  try {
+    localStorage.setItem(LAST_CONV_KEY, JSON.stringify({ id: conv.id, title: conv.title }));
+  } catch (_) {
+    /* 隐私模式或配额已满时放弃缓存，不影响主流程 */
+  }
+}
+
+function restoreConversationTitle() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(LAST_CONV_KEY) || "null");
+    if (cached && cached.title) els.chatTitle.textContent = cached.title;
+  } catch (_) {
+    localStorage.removeItem(LAST_CONV_KEY);
+  }
+}
+
 // ---------------- 认证 ----------------
 
 function setAuthMode(mode) {
@@ -135,6 +158,7 @@ function logout(message) {
   state.currentId = null;
   state.messages = [];
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(LAST_CONV_KEY);
   els.currentUser.textContent = "";
   els.list.innerHTML = "";
   els.messageList.innerHTML = "";
@@ -147,6 +171,7 @@ function logout(message) {
 async function bootstrap() {
   const me = await api("/api/users/me");
   els.currentUser.textContent = me.username;
+  restoreConversationTitle();
   showApp();
   await refreshConversations();
   if (state.conversations.length > 0) {
@@ -163,7 +188,10 @@ async function refreshConversations() {
   state.conversations = data.items;
   renderConversations();
   const current = state.conversations.find((c) => c.id === state.currentId);
-  if (current) els.chatTitle.textContent = current.title;
+  if (current) {
+    els.chatTitle.textContent = current.title;
+    rememberConversation(current);
+  }
 }
 
 function renderConversations() {
@@ -212,6 +240,7 @@ async function createConversation() {
     state.currentId = conv.id;
     state.messages = [];
     els.chatTitle.textContent = conv.title;
+    rememberConversation(conv);
     renderMessages();
     renderConversations();
     els.input.focus();
@@ -229,6 +258,7 @@ async function deleteConversation(id) {
       state.currentId = null;
       state.messages = [];
       els.chatTitle.textContent = "新对话";
+      localStorage.removeItem(LAST_CONV_KEY);
       showEmptyState();
     }
     await refreshConversations();
@@ -246,7 +276,10 @@ async function selectConversation(id) {
   setComposerBusy(false);
   state.currentId = id;
   const conv = state.conversations.find((c) => c.id === id);
-  if (conv) els.chatTitle.textContent = conv.title;
+  if (conv) {
+    els.chatTitle.textContent = conv.title;
+    rememberConversation(conv);
+  }
   renderConversations();
 
   try {
