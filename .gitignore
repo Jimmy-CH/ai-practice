@@ -167,3 +167,6 @@ logs/
 # doc-release 部署包构建产物
 doc-release/out/
 .npm-cache/
+
+# ai-chat-lite 截图归档仅保留本地，不纳入版本库
+ai-chat-lite/docs/
