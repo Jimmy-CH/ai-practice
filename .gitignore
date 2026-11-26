@@ -166,3 +166,4 @@ logs/
 
 # doc-release 部署包构建产物
 doc-release/out/
+.npm-cache/
