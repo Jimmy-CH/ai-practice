@@ -6,3 +6,5 @@
 |--------|------|------|
 | ai-chat-lite | [设计说明](./ai-chat-lite-设计说明.md) | 功能定位、数据模型、API 契约、流任务管理（方案 A）、SSE 事件编码、前端解析、测试策略 |
 | ai-chat-lite | [实施计划](./ai-chat-lite-实施计划.md) | 按 TDD 拆分的 10 个任务：骨架 → 认证 → 会话 → 流式客户端 → 流任务 → 消息接口 → 前端 → 收尾验证 |
+| ai-stream-demo | [设计说明](./ai-stream-demo-设计说明.md) | 流式接口封装：SSE 线格式、CORS 预检、finally 哨兵、坑位清单与测试策略 |
+| ai-stream-demo | [实施计划](./ai-stream-demo-实施计划.md) | 7 个 TDD 任务：骨架 → CORS → 正常流 → 异常收敛 → 流前校验 → 前端 → 收尾 |

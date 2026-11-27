@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Stream Demo · 流式水龙头</title>
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; }
+    main { max-width: 760px; margin: 48px auto; padding: 0 16px; }
+    h1 { font-size: 20px; }
+    .status { font-size: 13px; color: #94a3b8; margin-bottom: 12px; }
+    #output { min-height: 180px; white-space: pre-wrap; line-height: 1.7;
+      background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 16px; }
+    textarea { width: 100%; box-sizing: border-box; margin-top: 12px; height: 88px;
+      background: #1e293b; color: #e2e8f0; border: 1px solid #334155; border-radius: 8px; padding: 12px; }
+    button { margin-top: 12px; padding: 10px 20px; border: 0; border-radius: 8px;
+      background: #2563eb; color: #fff; cursor: pointer; }
+    button:disabled { background: #475569; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>流式 AI 接口 · 水龙头演示</h1>
+  <div class="status">状态：<span id="status">空闲</span></div>
+  <div id="output"></div>
+  <textarea id="input">用三句话解释什么是 HTTP 分块传输编码。</textarea>
+  <button id="send">开始生成</button>
+</main>
+<script>
+const API = "http://127.0.0.1:8000/api/stream";
+const output = document.getElementById("output");
+const statusEl = document.getElementById("status");
+const inputEl = document.getElementById("input");
+const sendBtn = document.getElementById("send");
+
+let controller = null;
+
+sendBtn.addEventListener("click", async () => {
+  if (controller) controller.abort();
+  controller = new AbortController();
+  output.textContent = "";
+  statusEl.textContent = "连接中…";
+  sendBtn.disabled = true;
+
+  try {
+    const resp = await fetch(API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: [{ role: "user", content: inputEl.value }] }),
+      signal: controller.signal,
+    });
+
+    // 坑位：流开始前的错误是普通 JSON，可直接读取 detail
+    if (!resp.ok) {
+      const detail = await resp.json().catch(() => ({}));
+      throw new Error(detail.detail || `HTTP ${resp.status}`);
+    }
+
+    statusEl.textContent = "生成中…";
+    // 坑位：必须 getReader() 逐块读，不能用 response.text() 一次性读完
+    const reader = resp.body.getReader();
+    // 坑位：stream:true 让 TextDecoder 保留跨块的多字节字符
+    const decoder = new TextDecoder("utf-8");
+    let buffer = "";
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const blocks = buffer.split("\n\n");
+      buffer = blocks.pop();
+      for (const block of blocks) {
+        const line = block.split("\n").find((l) => l.startsWith("data:"));
+        if (!line) continue;
+        const data = line.slice(5).trim();
+        if (data === "[DONE]") {
+          statusEl.textContent = "完成";
+          continue;
+        }
+        const payload = JSON.parse(data);
+        if (payload.error) throw new Error(payload.error.message);
+        const delta = payload.choices?.[0]?.delta?.content;
+        if (delta) output.textContent += delta;
+      }
+    }
+  } catch (err) {
+    if (err.name === "AbortError") {
+      statusEl.textContent = "已取消";
+    } else {
+      statusEl.textContent = "出错";
+      output.textContent += `\n[错误] ${err.message}`;
+    }
+  } finally {
+    sendBtn.disabled = false;
+    controller = null;
+  }
+});
+</script>
+</body>
+</html>

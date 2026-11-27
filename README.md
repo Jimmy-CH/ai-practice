@@ -9,6 +9,7 @@ AI 全栈实践项目集合，涵盖从基础 AI 对话、数据分析 Agent、R
 | [ai-chat-demo](#1-ai-chat-demo) | AI 对话演示版 | FastAPI + Vue 3 + DeepSeek SSE 流式对话 |
 | [ai-chat](#2-ai-chat) | AI 对话完整版 | 用户认证 + JWT + SSE 断点续传 + 全异步架构 |
 | [ai-chat-lite](#8-ai-chat-lite) | 原生前端轻量对话版 | FastAPI + httpx 流式消费 + 原生 HTML/JS + 后台流任务 |
+| [ai-stream-demo](#9-ai-stream-demo) | 流式接口封装与避坑实践 | FastAPI + StreamingResponse + OpenAI SDK + SSE 分块传输 |
 | [data-agent](#3-data-agent) | 数据分析 Agent | LangChain ReAct Agent + SQL 工具 + RBAC 权限 |
 | [rag-knowledge-base](#4-rag-knowledge-base) | RAG 知识库问答 | ChromaDB 向量检索 + 语义缓存 + 可观测性 |
 | [doc-release](#5-doc-release) | 发布文档自动生成（释文） | 五步异步流水线 + SSE + tree-sitter AST + 星语 LLM |
@@ -188,6 +189,26 @@ ai-chat-lite/
 
 ---
 
+## 9. ai-stream-demo
+
+> 把大模型 API 封装成「水龙头」式的流式接口：FastAPI `StreamingResponse` + 异步生成器逐 token 推送 SSE，`finally` 必发 `[DONE]`，前端用原生流逐块消费。
+
+**核心能力：**
+- **标准 SSE 线格式**：每个 token 一条 `data: {"choices":[{"delta":{"content":"..."}}]}`，末尾 `data: [DONE]`
+- **finally 哨兵**：正常结束与上游异常都在 `finally` 补 `[DONE]`，前端不会卡在「生成中」
+- **异常收敛**：流内错误转成 `error` 事件；流开始前校验 Key，配置错误返回普通 JSON 500
+- **CORS 实战**：前端独立跑在 `:5500`，真实触发预检；精确允许源而非通配符
+- **避坑教学**：注释标注 GZip 攒包、吞取消、Content-Length、按字节切 JSON 等 8 个坑位
+- **测试**：pytest 覆盖健康检查、CORS 预检、正常流、上游异常仍发 `[DONE]`、缺 Key 校验
+
+```
+ai-stream-demo/
+├── backend/     # 单文件 FastAPI + OpenAI SDK 流式 + pytest
+└── frontend/    # 原生 HTML/JS（fetch + ReadableStream）
+```
+
+---
+
 ## 快速开始
 
 ### 环境要求
@@ -256,6 +277,9 @@ ai-practice/
 ├── ai-chat-lite/            # ⑧ 原生前端流式对话（轻量版）
 │   ├── backend/             #   FastAPI + httpx 流式 + 后台流任务 + JWT
 │   └── frontend/            #   原生 HTML/JS/CSS（零构建）
+├── ai-stream-demo/          # ⑨ 流式接口封装与避坑实践
+│   ├── backend/             #   单文件 FastAPI + StreamingResponse + OpenAI SDK
+│   └── frontend/            #   原生 HTML（fetch + ReadableStream）
 ├── docs/superpowers/        # 设计与实施文档（specs / plans）
 └── demo-app.html            # 释文 DocRelease 交互演示页
 ```
@@ -277,6 +301,7 @@ ai-chat-demo ──→ ai-chat ──→ data-agent ──→ rag-knowledge-base
 6. **content-workbench**：掌握多资料证据约束生成、审核审计与发布闭环
 7. **doc-release**：打通代码变更解析、异步流水线、SSE 进度与确定性文档渲染
 8. **ai-chat-lite**：不借框架手写 SSE 解析、打字机渲染、停止生成与断点续传，理解流式链路的每一处细节
+9. **ai-stream-demo**：把 OpenAI SDK 流式调用封装成标准 SSE，掌握 StreamingResponse、chunked 传输、CORS 预检与 finally 收尾哨兵
 
 ## License
 
