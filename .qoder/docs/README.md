@@ -12,3 +12,5 @@
 | local-pdf-rag | [设计说明](./local-pdf-rag-设计说明.md) | 本地 PDF RAG 基础版：解析/切分/向量化/JSON 存储/余弦 Top-4/生成，含生产存储迁移说明 |
 | local-pdf-rag | [实施计划](./local-pdf-rag-实施计划.md) | 9 个 TDD 任务：骨架 → 切分/余弦 → JSON 存储 → PDF 解析 → Ollama 客户端 → RAG 编排 → API → 前端/假 Ollama → 收尾 |
 | local-pdf-rag | [实现说明](./local-pdf-rag-实现说明.md) | 代码地图、数据链路、JSON 表结构、口径与不变量、接口与调度、验证与排障 |
+| multi-agent-research | [设计说明](./multi-agent-research-设计说明.md) | 多 Agent 调研报告编排：五角色、状态机与大纲暂停点、BM25 检索、数据模型、API/SSE、测试策略与范围边界 |
+| multi-agent-research | [实施计划](./multi-agent-research-实施计划.md) | 16 个 TDD 任务：骨架/配置 → 六表 → 切分分词 → BM25 → 入库 → LLM 客户端 → 五个 Agent → 状态机 → Runner → API → SSE → 前端三列 → 文档收尾 |
