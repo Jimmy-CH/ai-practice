@@ -9,3 +9,6 @@
 | ai-stream-demo | [设计说明](./ai-stream-demo-设计说明.md) | 流式接口封装：SSE 线格式、CORS 预检、finally 哨兵、坑位清单与测试策略 |
 | ai-stream-demo | [实施计划](./ai-stream-demo-实施计划.md) | 7 个 TDD 任务：骨架 → CORS → 正常流 → 异常收敛 → 流前校验 → 前端 → 收尾 |
 | ai-stream-demo | [实现说明](./ai-stream-demo-实现说明.md) | 代码地图、数据链路、请求体与 SSE 线格式契约、不变量、接口与调度、验证与排障 |
+| local-pdf-rag | [设计说明](./local-pdf-rag-设计说明.md) | 本地 PDF RAG 基础版：解析/切分/向量化/JSON 存储/余弦 Top-4/生成，含生产存储迁移说明 |
+| local-pdf-rag | [实施计划](./local-pdf-rag-实施计划.md) | 9 个 TDD 任务：骨架 → 切分/余弦 → JSON 存储 → PDF 解析 → Ollama 客户端 → RAG 编排 → API → 前端/假 Ollama → 收尾 |
+| local-pdf-rag | [实现说明](./local-pdf-rag-实现说明.md) | 代码地图、数据链路、JSON 表结构、口径与不变量、接口与调度、验证与排障 |

@@ -10,6 +10,7 @@ AI 全栈实践项目集合，涵盖从基础 AI 对话、数据分析 Agent、R
 | [ai-chat](#2-ai-chat) | AI 对话完整版 | 用户认证 + JWT + SSE 断点续传 + 全异步架构 |
 | [ai-chat-lite](#8-ai-chat-lite) | 原生前端轻量对话版 | FastAPI + httpx 流式消费 + 原生 HTML/JS + 后台流任务 |
 | [ai-stream-demo](#9-ai-stream-demo) | 流式接口封装与避坑实践 | FastAPI + StreamingResponse + OpenAI SDK + SSE 分块传输 |
+| [local-pdf-rag](#10-local-pdf-rag) | 本地 PDF 文档问答（RAG 基础版） | FastAPI + pypdf + Ollama BGE-M3 + Qwen2.5 3B + JSON 索引 |
 | [data-agent](#3-data-agent) | 数据分析 Agent | LangChain ReAct Agent + SQL 工具 + RBAC 权限 |
 | [rag-knowledge-base](#4-rag-knowledge-base) | RAG 知识库问答 | ChromaDB 向量检索 + 语义缓存 + 可观测性 |
 | [doc-release](#5-doc-release) | 发布文档自动生成（释文） | 五步异步流水线 + SSE + tree-sitter AST + 星语 LLM |
@@ -18,7 +19,7 @@ AI 全栈实践项目集合，涵盖从基础 AI 对话、数据分析 Agent、R
 
 ## 技术栈
 
-**后端：** Python 3.11+ · FastAPI · SQLAlchemy 2.0 (Async) · LangChain · ChromaDB · Redis · SQLite · python-docx · python-pptx · DeepSeek / 星语（Xingyu）LLM · OpenAI Embedding
+**后端：** Python 3.11+ · FastAPI · SQLAlchemy 2.0 (Async) · LangChain · ChromaDB · Redis · SQLite · python-docx · python-pptx · DeepSeek / 星语（Xingyu）LLM · OpenAI Embedding · Ollama（BGE-M3 / Qwen2.5） · pypdf
 
 **前端：** Vue 3 · TypeScript · Vite · Pinia · Vue Router · Element Plus · Axios · Playwright（E2E）· 原生 HTML/JS（ai-chat-lite，零框架零构建）
 
@@ -209,6 +210,27 @@ ai-stream-demo/
 
 ---
 
+## 10. local-pdf-rag
+
+> 本地 PDF 文档问答 RAG 基础版：pypdf 逐页解析 → 800/100 滑窗切分 → Ollama BGE-M3 向量化 → JSON 索引 → 余弦 Top-4 → Qwen2.5 3B 生成，答案带来源。
+
+**核心能力：**
+- **完整闭环**：上传 PDF → 逐页提取 → 切分 → 向量化 → 本地 JSON 存储 → 余弦检索 → 生成，每一步都可单独测试
+- **切分口径**：默认 800 字符、相邻片段重叠 100 字符，按页切分不跨页，避免语义截断与跨页污染
+- **本地推理**：Ollama 同时承载 BGE-M3 Embedding 与 Qwen2.5 3B 生成；未安装 Ollama 时可用自带假服务跑通全链路
+- **可迁移存储**：`VectorStore` 协议隔离 JSON 实现，后续可替换 Redis（会话缓存）与 PostgreSQL/pgvector（业务状态）
+- **可解释答案**：返回 Top-4 来源片段，含文件名、页码、余弦分数与摘要
+- **测试**：pytest 覆盖切分、余弦、JSON 存储、PDF 解析、Ollama 客户端、RAG 编排与 API
+
+```
+local-pdf-rag/
+├── backend/     # FastAPI + pypdf + httpx(Ollama) + JSON 索引 + pytest
+│   └── scripts/ # 假 Ollama 服务（无本地模型时联调）
+└── frontend/    # 原生 HTML/JS（上传 + 文档列表 + 提问 + 来源）
+```
+
+---
+
 ## 快速开始
 
 ### 环境要求
@@ -217,6 +239,7 @@ ai-stream-demo/
 - Node.js 22+ / npm
 - DeepSeek API Key（[申请地址](https://platform.deepseek.com/)）或星语（Xingyu）大模型网关
 - OpenAI API Key（rag-knowledge-base 的 Embedding 用）
+- Ollama（local-pdf-rag 用；未安装时可用 `scripts/fake_ollama.py` 假服务联调）
 
 ### 运行任意子项目
 
@@ -280,6 +303,9 @@ ai-practice/
 ├── ai-stream-demo/          # ⑨ 流式接口封装与避坑实践
 │   ├── backend/             #   单文件 FastAPI + StreamingResponse + OpenAI SDK
 │   └── frontend/            #   原生 HTML（fetch + ReadableStream）
+├── local-pdf-rag/           # ⑩ 本地 PDF 文档问答（RAG 基础版）
+│   ├── backend/             #   FastAPI + pypdf + Ollama + JSON 索引
+│   └── frontend/            #   原生 HTML（上传 + 提问 + 来源）
 ├── docs/superpowers/        # 设计与实施文档（specs / plans）
 └── demo-app.html            # 释文 DocRelease 交互演示页
 ```
@@ -302,6 +328,7 @@ ai-chat-demo ──→ ai-chat ──→ data-agent ──→ rag-knowledge-base
 7. **doc-release**：打通代码变更解析、异步流水线、SSE 进度与确定性文档渲染
 8. **ai-chat-lite**：不借框架手写 SSE 解析、打字机渲染、停止生成与断点续传，理解流式链路的每一处细节
 9. **ai-stream-demo**：把 OpenAI SDK 流式调用封装成标准 SSE，掌握 StreamingResponse、chunked 传输、CORS 预检与 finally 收尾哨兵
+10. **local-pdf-rag**：从零实现 RAG 基础闭环，掌握 PDF 解析、字符滑窗切分、BGE-M3 向量化、余弦检索与本地 Ollama 生成
 
 ## License
 
