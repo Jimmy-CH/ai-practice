@@ -90,4 +90,4 @@ curl.exe -N -X POST http://127.0.0.1:8000/api/stream `
 
 ## 设计文档
 
-设计与实施计划归档在仓库 `.qoder/docs/`：`ai-stream-demo-设计说明.md`、`ai-stream-demo-实施计划.md`。
+设计、实施计划与实现说明归档在仓库 `.qoder/docs/`：`ai-stream-demo-设计说明.md`、`ai-stream-demo-实施计划.md`、`ai-stream-demo-实现说明.md`。
